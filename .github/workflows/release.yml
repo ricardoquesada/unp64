@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: unp64
+            asset_name: unp64-linux-amd64
+          - os: ubuntu-24.04-arm
+            artifact_name: unp64
+            asset_name: unp64-linux-arm64
+          - os: windows-latest
+            artifact_name: unp64.exe
+            asset_name: unp64-windows-amd64
+          - os: macos-latest
+            artifact_name: unp64
+            asset_name: unp64-macos-universal
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          mingw32-make -C src CFG=Release
+
+      - name: Build (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          make -C src CFG=Release
+
+      - name: Build (macOS Universal)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Build for x86_64
+          make -C src cleanall
+          make -C src CFLAGS="-arch x86_64 -O3 -pipe -Wall" LDFLAGS="-arch x86_64 -pipe"
+          mv src/Release/unp64 src/unp64_x86
+
+          # Build for arm64
+          make -C src cleanall
+          make -C src CFLAGS="-arch arm64 -O3 -pipe -Wall" LDFLAGS="-arch arm64 -pipe"
+          mv src/Release/unp64 src/unp64_arm64
+
+          # Combine into universal binary
+          make -C src cleanall
+          mkdir -p src/Release
+          lipo -create -output src/Release/unp64 src/unp64_x86 src/unp64_arm64
+          rm src/unp64_x86 src/unp64_arm64
+
+      - name: Package (tar.gz)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cp unp64.txt src/Release/
+          tar -czf ${{ matrix.asset_name }}.tar.gz -C src/Release ${{ matrix.artifact_name }} unp64.txt
+
+      - name: Package (zip)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cp unp64.txt src/Release/
+          7z a ${{ matrix.asset_name }}.zip ./src/Release/${{ matrix.artifact_name }} ./src/Release/unp64.txt
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.zip
