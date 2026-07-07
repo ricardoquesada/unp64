@@ -1,0 +1,15 @@
+/target/
+**/*.rs.bk
+
+tests/test*.prg
+test_output.asm
+tmp/
+a.out
+
+.idea/
+.DS_store
+
+site/
+.cache/
+
+*.exe
