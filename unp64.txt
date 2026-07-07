@@ -1,0 +1,1601 @@
+-=[]=---------------------------------------------------------------------=[]=-
+        UNP64 v2.42 - Generic C64 prg unpacker - (C)2008-2026 iAN CooG
+-=[]=---------------------------------------------------------------------=[]=-
+
+Original source and idea: testrun.c, taken from Exomizer 2.0b7 by Magnus Lind.
+Converted to a generic prg unpacker by iAN CooG. Being a derived project,
+Exomizer' sources used for UNP64 are included and modified where needed.
+
+-=[]=---------------------------------------------------------------------=[]=-
+
+The idea is simple: to simulate the C64 memory/processor, run the program until
+it reaches the unpack routine, usually relocated to an address lower than $0800,
+then to continue execution until the Program Counter returns to a normal address
+usually higher than $0800. At this point, save all the memory.
+I normally do this process in emulators by setting breakpoints but an automatic
+program that does it for me is handy.
+PUCrunch and Exomizer 2.0Beta7 already have their own decrunch commands.
+This program should cover those 2 and almost all the remaining ones.
+
+Main changes applied to Exomizer sources:
+
+- Many undocumented opcodes added to 6502emu.c to unpack more packers/coders.
+- Fixed handling of some opcodes (indirect JMP, JSR, BRK not stopping, ADC/SBC)
+- Better sysline detection and parameter to force entry point.
+- TrilogicExpert/ActionReplay/SuperSnapshot5/FreezeMachine/Final Cart II & III
+  scanner, should cover every known (to me) version.
+- Action Replay 4 & Freeze Machine Split freezes are detected and a onefiled prg
+  will be generated. Then you can unpack the result or crunch it.
+  Action Replay 4.x files are: loader "name" and 2nd file "1name"
+  Freeze Machine files can be any name, 2nd filename is written in loader.
+  Of course both files must be in the same directory.
+- Scanners to get exact unpack address from MANY difficult unpackers.
+  See Unpackers section later in this document for a list.
+- Tries to identify also entry point in SYS-less packers.
+- Added some memory init values before running. A C64 minimal environment is
+  replicated so many unpackers can act as on the real one.
+- Added handling of some Kernal calls which return modified regs.
+- Simple $01 banking implemented: writing to I/O area for example is handled
+  only when RAM is visible there, else writes to I/O are skipped.
+- Simple raster ($d011/2) handling, enough to avoid hanging some unpackers (AR)
+- Faked keyboard checks to bypass many intros/trainers.
+- Warnings are given in Verbose mode if vectors from $0314 are modified, so
+  you'll know if an IRQ or something else should happen.
+
+-=[]=---------------------------------------------------------------------=[]=-
+
+usage: UNP64 <packed.prg>{[,|@]Addr} [-parameters]
+
+-a       Save all mem instead of $0800-$ffff.
+-t$Addr  Truncate mem at Addr before saving. ZP Addr used as lo/hi pointer.
+-e$Addr  Specify entry point address in case SYS detection fails.
+-d$Addr  Unpacker address = Addr; default: first address < return address.
+-r$Addr  Return address from unpacker must be >= Addr. (default:$0800)
+-R$Addr  Return address from unpacker must be == Addr.
+-u[val]  Clean unchanged memory with 0, or other value if specified.
+-l[val]  Clean leftover packed data copied at end of memory with 0 or val.
+-s       Use a zero-filled stack on loading + SP=$FF, else like on C64.
+-fXX     Fill memory with byte XX instead of 0, before loading.
+-i       Identify only.       -c      Continue unpacking until error.
+-v       Verbose output.      -x      Trace for Debug.
+-B       Patch original Basic ROM at $a000, if prg is shorter.
+-K       Patch original Kernal ROM at $e000, if prg is shorter.
+-o Name  Force output filename as "Name"
+Default output filename is packed.prg.XXXX where XXXX is the hex JMP address.
+Use packed.prg,Addr to relocate loading at Addr instead of .prg loadaddress.
+Use packed.bin@Addr to load at Addr raw binaries without loadaddress.
+
+
+-=[]=---------------------------------------------------------------------=[]=-
+                                  PARAMETERS
+-=[]=---------------------------------------------------------------------=[]=-
+
+-a:
+Use -a to save all mem $0002-$ffff, many times it is interesting also to see
+the lower memory after unpacking, for example to know which address to give
+to parameter -t. Sometimes the unpacked program starts from $0400 or less.
+
+-c:
+Continues unpacking until an error occours. Useful to blindly unpack all
+packing layers. After 16 recursions it stops anyway, but 3-4 consecutive layers
+should be considered normal, 5 layers to me are even excessive.
+Worst case found so far had 15 layers (Cruncher 1.0 by Marauder/GSS):
+
+ASC/SCF Protector, unpacker=$041f
+Marauder Cruncher v1.x, unpacker=$033c
+GSS Coder v1.2, unpacker=$0442
+MC-Cracken Compressor, unpacker=$0100
+FileCompactor I/MTB, unpacker=$033c
+Marauder Cruncher v1.x, unpacker=$033c
+FCG Coder, unpacker=$06c5
+ECA Compacker, unpacker=$0100
+Super Compressor / Flexible, unpacker=$0334
+Super Compressor / Equal sequences, unpacker=$0335
+Super Compressor / Equal chars, unpacker=$0100
+Marauder Cruncher v1.x, unpacker=$033c
+Marauder Cruncher v1.x, unpacker=$033c
+Marauder Cruncher v1.x, unpacker=$033c
+TCS Cruncher v3.0, unpacker=$0334
+
+so many layers surely discouraged non-experts to unpack each layer manually in
+the past, but that surely didn't stop anyone to reset/freeze and dump the memory
+once the program was started, so I don't see the point in such aggressive and
+counter-productive protection, only worsened filesize and unpacking time.
+
+-d:
+The unpacker address is detected by a simple rule: the first address reached
+LESS than the return address, which is by default $0800 but can be changed
+with parameter -r or -R. Some unpackers constantly jump from lower mem to
+upper mem, so a specific address must be supplied.
+Some of these particular packers needed this parameter, from version 1.04
+many are identified and parameters changed automatically. There are surely some
+others that will need this parameter, I can't test every prg I have, but I'll
+try as many as possible and include automatic detection.
+
+-e:
+Entry point is found automatically by searching the SYS line.
+If it's too complex or there is none you can supply it by yourself with -e
+example: -e$80d ; can be written -e2061
+
+-f:
+Simulated memory is initialized to all zeroes. In some circumstances using
+a different filler byte is handy. For example to quickly identify unchanged
+memory, like Action Replay does, use -f$BD. To start filling at a specified
+address instead of $0000, use high word as address and lower word as filler.
+-f$080100f8 will fill memory with byte $f8 starting at address $0801.
+
+-l[val]:
+Some packers copy all the packed data at the end of memory then start unpacking.
+Most of the times, at the end of unpack, the packed data remains there because
+it's not overwritten by unpacked data. This option makes UNP64 scan the end of
+memory backward against the packed program and clear everything that seems the
+original packed data until a different byte is found, then it prints the
+address reached.
+ECA Compacker have some special code to relocate $d000-$efff to $e000-$ffff
+after unpacking, so memory at $d000-dfff will result sometimes as unnecessary
+garbage, but it's not always true. The moved area seems to be determined by the
+"Low Mem" setting of the packer, so can be different. Someone could have set it
+wrongly, and the copied data at $e000 could be even the part to clean.
+You have to try with -l to clean the area - UNP64 determines the range by itself
+analyzing the unpacker code - and see if it's really unneeded.
+When using this parameter, a ".clean" extension is appended to the output file.
+By default the filler value is 0, but you can specify another value, for
+example -l0xea or -l$60
+
+-r/-R:
+Return address is the first address reached after unpacking (usually by a
+JMP as the last instruction in the unpacker code). Normally anything higher or
+equal to $0800 will stop unpacking and causes the dump of the memory.
+This is normally the Startaddress of the unpacked program.
+If you know the startaddress is something "around" an address you can use -r.
+If you need an exact address and not something higher, use -R.
+-r$400 will dump after reaching anything from $400 and higher
+-R$428 will dump after reaching exactly $428.
+If UNP64 exits with "Max iterations reached" which means it detected a loop,
+that address is wrong. Max iterations can be altered with parameter -m.
+Some known packers are scanned for the exact return address, but there's no
+sure method to detect them all.
+The majority of unpackers end with a9 37 85 01 58 4c xx xx or similar ones,
+but it's not a rule of thumb.
+When -r is used and the address supplied is less than $800 the memory will be
+saved from that address. When not sure, use -a.
+
+-s:
+Many unpackers set the stack pointer to $FF and use the stack space as code or
+buffer, so any value contained in the stack space and SP is irrelevant.
+Some others instead assume SP being already set to $F6 and expect also to
+read or "pop" values from stack as in a C64 just switched on before loading.
+UNP64 by default sets the stack space exactly as in a C64, with SP=$F6 just
+before executing the initial SYS. In case the stack space should be zeroed
+and SP set to $FF, use this parameter. So far only 3 unpackers were found
+requiring this parameter, and they're already managed by custom scanners.
+
+-t:
+Some unpackers rely on exact filesize using basic pointers to determine it.
+UNP64 sets the basic pointers from $2b and $ae/$af as in a C64.
+Other unpackers also set the pointers during or after unpack, some of these
+unpackers are known to UNP64 and correct filesize is determined at runtime.
+For all the other cases where UNP64 does not yet know how to reliably determine
+the size, the option -t is useful. Just give the address you want to truncate.
+If address is in zeropage (usually $2d) the address pointed by it after
+unpacking will be used: if $2d contains $34, $2e contains $12, $1234 is used.
+Usually -t45 or -t$2d is enough to set the right size of the unpacked prg.
+Some others update $ae/af instead, so try -t$ae.
+You have to disassemble the prg or do some tries to find out the right one.
+
+-u[val]:
+Parameter -u is far from perfect but it is useful to know which memory area
+should be cleaned. It happens many times that the packed program is not made
+from a contiguous stream of memory from $0800 to $ffff but little pieces
+linked together, for example:
+$1000-$17ff
+$2000-$2400
+$8000-$9000
+$c000-$cfff
+Or more simply starting from $0900, or the unpacker has special codes to
+skip to another address instead of writing filler bytes up to the new address.
+In such cases after unpacking, lots of the original packed data will be left in
+the "holes" of the unpacked memory.
+When using this parameter a ".clean" extension will be appended and the
+generated output prg will have zeroed memory where the same bytes of the
+unpacked prg are left unchanged.
+You know that "shit happens" and there are lots of cases where the same bytes
+are meant to be there, so a 4-byte check is done. If the same 4 bytes are found
+they will be zeroed, otherwise they will remain the same.
+Some unpacker where this option is useful: ByteCompactor, Mr.Cross, TCD Link.
+When unpacking IsePic freeze files use -u to remove the nasty pseudorandom fill
+pattern, else it's hard to do it manually.
+By default the filler value is 0, but you can specify another value, for
+example -l0xea or -l$60
+
+-v:
+Some debugging messages will be printed to console, normally you don't need to
+read them. These messages include:
+- IRQ/NMI vectors from $0314 changed by the code.
+- JSR $FFE4 or reads from $DC00/1 (wait for fire/space) are simulated.
+  JSR $FFE4 receives a sequence of keys in Accumulator, each time a different
+  key: space, run/stop, return, crsr down, 1. LDA $DC00/1 always returns A=$EF.
+  Key debounce is simulated aswell, every 2nd read will return "released".
+- reads from $DD0x forced to $ff instead of what's actually in memory.
+- many other special warnings.
+- some unpacker text, for example on BYG comp, Sledgehammer II+, etc.
+- address ranges of linked sections with some linkers.
+- number of iterations and total cycles taken by the unpacker.
+
+Changed IRQ/NMI vectors means the program probably should be emulated to be
+correctly unpacked.
+If the entrypoint leads to an intro or de-coder that does its stuff all inside
+IRQ, UNP64 will probably enter in an infinite loop, which is detected anyway:
+after a fixed, big number of iterations or number of instructions executed,
+UNP64 will exit saying "Max iterations reached".
+Use Ctrl-Break to interrupt it, of course, but this shouldn't be needed.
+Try changing the entry point to the IRQ address ($0314 pointed value printed
+when using -v param) as most intros check for space in one of the IRQ routines.
+If everything fails it's better to unpack with a real emulator, but most of the
+times UNP64 unpacks also freezed prgs.
+
+Example:
+C:\test\>unp64 -v "SUPER MONACO GP!.prg.0810"
+Entry point: $0810
+pass1, find unpacker: Warning! Vector $0314-$0315 changed from $ea31 to $0831
+pass1, find unpacker: Warning! Vector $0314-$0315 changed from $0831 to $083f
+pass1, find unpacker:
+Max Iterations Reached, quitting...
+
+C:\test\>unp64 -v "SUPER MONACO GP!.prg.0810" -e$83f
+entry point forced to $083f
+Entry point: $083f
+pass1, find unpacker:
+LDA $DC01->space pressed
+$033c
+pass2, return to mem:
+$a659 -> forced RUN
+($a7ae)->$0801
+saved $0800-$ffff as SUPER MONACO GP!.prg.0810.0801
+
+-i:
+Use this parameter to only identify packers without actually unpacking.
+UNP64 emits only filename and identified packer then exits.
+Errorlevel is set to 0 for unknown, 1 for known packers.
+Example batch usage:
+
+for %a in (*.prg) do unp64 "%a" -i>>output.txt
+
+output.txt will look like this:
+
+PD-075.prg : Time Cruncher v3.1, unpacker=$0100
+PD-079.prg : DarkSqueezer / Generic Hack, unpacker=$0100
+PD-080.prg : MDG Packer, unpacker=$0400
+PD-086.prg : Time Cruncher v5, unpacker=$0100
+PD-096.prg : DarkSqueezer v2.x, unpacker=$0100
+PD-097.prg : Gentlemen FX Packer 2.0, unpacker=$0001
+PD-099.prg : Super Compressor / Equal sequences, unpacker=$0335
+PD-102.prg : CruelCrunch v1, unpacker=$0100
+PD-104.prg : FX bytepress, unpacker=$040d
+PD-107.prg : MasterCompressor, unpacker=$0100
+....
+
+-x:
+Trace every emulated instruction and emit full dump of registers A X Y, stack
+pointer, status register, current address, disasm of current opcode and actual
+accessed address in indexed instructions between parenthesis.
+Example of output:
+
+00 01 00 f2 20: 0838 lda $a180,x ($a181)
+a4 01 00 f2 a0: 083b sbc #$42
+61 01 00 f2 21: 083d sta $0500,x ($0501)
+
+Expect *long* output and *slow* execution, use with redirection > of course.
+
+-o:
+Force output filename, instead of generating it from input filename + suffix.
+Name can be specified in both forms, -oName and -o Name. Can be useful if
+UNP64 is used in a script and the output filename needs to be always the same,
+or it's needed to use recursive decompression (-c) but the intermediate files
+are unwanted. The drawback is that the JMP address won't be known unless read
+from screen after the string "pass2, return to mem:".
+
+-B:
+-K:
+(experimental options)
+There are some (few I hope) unpackers that use locations from ROMs to
+decrypt datas, or (found in only one occasion so far) use indirect jumps
+in ROMs. Anyway, whatever they are needed for, original ROMs should be there.
+These 2 options simply patch the simulated memory copying the ROMs in their
+places - $A000 for Basic, $E000 for Kernal - and work only if the prg
+doesn't already overlap the needed ROM space.
+TSM Lamer Scrambler for example was one of those needing the Kernal ROM, but now
+the prg is patched on the fly to avoid this need.
+
+-m:
+(somewhat undocumented and normally not needed option)
+Change the max iterations value in case unpackers take so much time that
+don't finish unpacking after the default 0x02000000 iterations. Such cases
+should happen rarely even with very intensive packers like ALZ64.
+
+
+-=[]=---------------------------------------------------------------------=[]=-
+   Unpackers previously needing special handling but now understood by UNP64
+-=[]=---------------------------------------------------------------------=[]=-
+
+-=-------------=-
+* FREEZER CARTS *
+-=-------------=-
+Action Replay (3.x / 4.x and newer)
+Action Replay Split Freeze
+FinalCart I Split Freeze
+FinalCart II Split Freeze
+FinalCart III Split Freeze
+Freeze Machine
+Freeze Machine Split Freeze
+IsePic (at least 2 variants)
+StarExpert / Fast Freeze
+Super Snapshot 5
+Trilogic Expert v1.x / v2.x / v3.x / v4.x (+various hacks)
+
+-=-------------------=-
+* PACKERS & CRUNCHERS *
+-=-------------------=-
+1001 CardCruncher v4 (cruncher/new packer/old packer)
+1001 CardCruncher hacks (ACM/NATO CRAM/HTL)
+3Code Zipper/REM
+4C Packer
+4Code Zipper v2.0/v2.S
+4WD-Soft Packer
+64'er BitPacker / BitPacker special (with 2 layers)
+64'er / Equal sequences 4.0A/B/C/D/DB/F / 4.1A/B/C
+64'er / special versions (2nd layers)
+64'er (Happy-Packer) / Equal sequences 2.2/3.2
+ABCruncher  (at least 4 variants, SCS and ONS hacks included)
+AbuzeCrunch v3.x (3 variants) / v3.7 / v5.0
+Action Packer
+Admiral P4Kbar/Ferris
+Agnus $02 Packer
+Agony Packer v2
+ALZ64/Kabuto
+Amnesia Packer (2 variants)
+Anticom Packer
+Antiram Packer (aka Packer 820, 2 variants)
+Apack/MadRom
+BAM Compacker
+BAM Reductor v3.0 / v3.3
+Baskerville Cruncher v0.6x/v07.x
+BeastLink (+sysless)
+Beeftrucker (aka $56 zipper) / Zipplink (aka $54 zipper) (3 variants)
+Beeftrucker/Zipplink Loadback
+Beta Dynamic Compressor v2.x (2 variants + loadback) / v3.x (3 variants)
+BeyondForce Packer
+BitImploder (at least 2 variants)
+Bitnax v0.4
+BitPacker v2.x (Super Compressor hack)
+BitPickler 1.0 (normal/tiny/novis variants)
+BitStreamer v1.1
+BN 1872 Packer
+Bongo Cruncher
+Brains Packer
+Bronx Packer
+Buraki $02 Packer
+BYG Compactor v1.x / v2.x
+Byte Baby (BYG Compactor hack)
+ByteBoiler (+ ByteBoiler/CPX hack/SCS hack)
+ByteBoozer 0.9/1.0/1.1/2.0/LamerBoozer
+ByteBuster 4.x/Triad
+ByteCompactor
+ByteKiller v1.x
+Byterapers Packer v1.x / v2.x
+ByteStrainer v1.x
+C4MRP/RSi
+Cadaver Packer
+Cadgers Packer
+CCS Bittos v1.0
+CCS Bittos v4.0
+CCS Executer
+CCS Executer Packer
+CCS MaxShorter (and hacks)
+CCS ScreenShorter v1
+CCS Special
+CCS Super Compressor/Equal Sequences hack
+CCS Unknown
+CeleriPack
+Chris Noack's Mega Byte Packer
+CNCD Classic Packer
+Compress64k/Hermit v1.1/v1.2
+CRM Packer (S8 hack?)
+CruelCrunch 1.0 / 1.2 / 1.4 (Light)
+CruelCrunch 2.0 / 2.1 / 2.2 / 2.2+/2MHZ / 2.3/TKC / 2.x/ILS / 2.x/RND
+CruelCrunch/fast (aka FastCruel) 2.5 / 4.0 (3 variants)
+Crush/Taboo
+Cult Packer
+Dark Packer v2.0 / v2.1 / v3.1
+DarkSqueezer v0.8 / v2.1 / v2.2 (at least 3 variants) / v2.x  / v4.x
+DarkSqueezer hacks: F4CG / XTC / G*P / DOM / Paradroid / Sharks
+DarkSqueezer / ByteBonker (2 variants)
+DarkSqueezer / Darkfiler v1.0
+Datel UltraCompander (1001 CardCruncher hack: cruncher/compactor/packer)
+Doynamite v1.1
+Dr. Zoom Packer v1.0
+Dream Packer v2 (Sledgehammer v1 hack)
+DreamTeam Packer
+DSC Cruncher
+DSC Packer v1/v2
+EastLinker
+ECA Compactor/Linker (8+ variants)
+ECA / Old Packer (earlier than Compacker/linker)
+Enigma MFFL (1-filed IFFL)
+Entropy Packer
+Equal Byte Compressor v1.2 (3 variants +sysless & loadback)
+Equal Byte Compressor v1.4 (sys&sysless)
+Equal Byte Compressor v1.7 (sys&sysless)
+Equal Byte Compressor v1.9 (sys&sysless) / Talent variant
+Excalibur 666 Packer
+Exomizer (should cover every possible variant from 1.0 to 3.0)
+Exploding Cruel 2.6
+Exploding Cruncher v2.x / v2.1 / v2.2
+Exploding Faces v1.x / v2.x
+FacePacker v1.0 / v1.1
+Falco Paul Packer
+FastPacker v1.0
+FCG Packer (4 variants)
+FCG Linker (similar to TMC ultimate linker)
+File Press Expert (Time Cruncher hack)
+FileCompactor I/MTB
+Final Compactor
+Final/Super Compressor: Flexible / Equal Chars / Equal Sequences (many hacks)
+FinalCart 3 Packer
+Flexible Code Compactor (aka FileCompactor III/TMC; FP, Scoop & HTL variants)
+Flexible Code Compactor v2.x / Kinetic2
+Flexible Code Compactor v3.x / Bandit+CCS
+Frog Packer
+Frontpacker
+FSW Packer v1.0/2.0/3.0 (3 different ones)
+FX BitStreamer
+FX Bytepress / BB Bytepress / BB Soundpacker / Jewels Bytepress / Seen
+G-Packer/Oxyron
+Galleon's Alvesta Link
+Galleon's Byteraper
+Galleon's Compactor v3.5/ v3.6 / v3.7 / v3.8 / v3.9 / v3.x (sysless/loadback)
+Galleon's Equal Chars
+Galleon's FW4C v1.x / V2.x (+sysless) / V3.0/V3.1 (sysless)
+Galleon's Whom Packer v1.x / v2.x / 4.x (+sysless)
+Galleon's $02 Packer
+Galleon's $100 Packer
+Gandalf Packer
+Gentlemen FX Packer 2.0
+Gentlemen Stat Packer
+Gimzo Packer
+Graffity Packer
+HardPacker/Caution
+Hawk Packer
+Helmet/TempesT v2.x
+HitMen $02 Packer
+HitMen $20 Linker
+Huffer v1.0 / FLT
+Huffer v1.1 / Quick Cruncher
+Idiots FX Packer v1.0 / v2.0 / v2.1
+Ikari Cruncher
+ILS Compacker v2.x / v3.x (variable codebytes, sys&sysless)
+Inceria Packer
+ISC (Normal/Bitstream/Packer)
+IsePic onefiler: Generic
+IsePic onefiler: Anti-IsePic/7up v1/v2
+IsePic onefiler: Anti-IsePic/GSS v1.1
+IsePic onefiler: IsePicker/DD
+IsePic onefiler: IsePic Defroster/NC
+IsePic onefiler: IsePic Defroster/Amigo
+IsePic onefiler: Why IsePic/CT v1/v2
+J0xstrap's "SuperSekret" Cruncher
+JazzCat Cruncher
+JazzCat Packer
+Jedi Linker v1.x / v2.x
+Jedi Packer
+Jemasoft Basic Packer
+Just A Packer 2.0/Agony
+Kompressmaster Cruncher / 711 / BB (+special version)
+Kompressmaster Packer (2 variants +special version)
+Koncina Packer (many variants)
+Kress Cruncher
+Lightmizer
+Loadstar Mod Linker
+Loadstar Linker v2.0
+Loadstar StarLinker
+Loadstar Packer
+Low Cruncher
+LTS Packer
+LZMPi/MartinPiper v1.x / v2.x / v3.x
+Marauder Cruncher v1.x
+Marauder Cruncher&Coder v1.0/v1.1
+MaschinenSprache-Kompressor (variable entrypoint)
+MasterCompressor (and hacks, aka Time Cruncher 1.x/2.x)
+Matcham Basicpacker
+Matcham Charpacker
+Matcham Denser (Flexible / Equal Chars / 251)
+Matcham Flexer/229
+Matcham Linker/251
+MC-Cracken Compressor / Compressor+Coder
+MC-Cracken Hacks: CFB v2/TSS3/Crusher/Cobra/DigitalPacker/CodeOptimizer/SCC
+MDG Packer (and hacks)
+MeanTeam Cruncher (Flexible Code Compactor hack)
+Megabyte Cruncher64 (2 variants)
+MegaCrunch 4.0 (Time Cruncher hack)
+MegaCruncher v2.3/SCW
+MegaCruncher/BlackDuke
+Mekker
+Mr.Cross-linker v1.x / v2.x (+sysless)
+Mr.Z Packer (aka Mr.Z Crunch)
+MSCrunch 1.0 / 1.5 / 1.5ABS / 1.x / Unknown variant (Similar to CruelCrunch)
+MSI Cruncher v2.x / v3.x
+NEC Packer (variable entrypoint)
+NM156 Packer
+NM156 Linker
+NSU Packer v1.0 (from Beta Dynamic Compressor) / v1.1 (Action)
+Nibb-it
+NuCrunch/ChristopherJam
+Oneway Makt-Link v2.0
+ONS Packer
+Optimus Packer (+sysless hack)
+P100 Cruncher
+Packer 64/Taboo
+Packer Optimizer (2 variants)
+PAN Packer v1.0/v2.0
+Panoramic Equalizer v1.5
+Panoramic Packer v1.0/v2.0/v3.0/v3.1/v3.2
+Paradroid Linker
+Paradroid Packer v1.x (sys&sysless) / v2.x
+PET Cruncher v1.0/v1.1
+PET Linker
+PET Packer
+Pico Packer
+Plush Packer (sysless/loadback) (both fast & short versions)
+Polonus Unknown $101 Packer
+Polonus Unknown $45c Packer
+Polonus C64/+4/Amiga Packer
+Polonus Charblaster
+Polonus Equalchars Packer
+Polonus Krejzi Packer
+Pride Packer
+PSQ Linker V3.x (1 variant)
+PUCrunch (many variants)
+PZW Compactor
+QuickPacker/Caution v1.0 / v2.0 (+sysless) / v2.5 (+sysless)
+Rap Equal Chars
+Ratt Packer
+Ratt Linker
+Rebels Packer
+Relax 3-Byter
+Relax Packer v2.x
+Rows Cruncher
+ScreenCrunch 2064 / 2066 v1 / 2066 v2 / FCG
+Section 8 Packer (3 variants)
+Shurigen/Glitters Packer
+SIR Compact v1/2/3/4 (Time Cruncher hacks)
+SIR MasterLinker
+SIR MiniPacker
+SledgeHammer v1.0/v1.1/v1.2/v2.0/v2.1/v2.2/v2.2CCS/v2.3/v2.4/v3.0/Trap/Kreator
+Ultimate SledgeHammer PC v1.1/Sorex (+sysless)
+Spy Packer
+StarCrunch
+Supercrunch (2 variants)
+Superpack v4
+Super File Linker
+SupraCompactor (Time Cruncher hack)
+Syncro Packer v1.2 / v1.3 (+sysless) / v1.4 / v1.55 (sysless)
+T.L.R. Packer
+T.L.R. Linker (+sysless/loadback/fullmem)
+T.L.R. Subsizer (+sysless/loadback/dirty 0.5/dirty 0.6+/0.7)
+TAG Cruncher/Usul
+TBC Multicompactor v1 / v2 (not sure it's a v2 but it's very similar)
+TBC Multicompactor AutoBreakSystem / Manowar
+TCD Link&Crunch v1.x / v2.x
+TCS Cruncher v2.x (at least 2 variants) / v3.x
+TFG Packer
+ThunderCats Packer
+Tim Crunch
+Time Cruncher v3.x/4.x/5.x (different variants each)
+Time Cruncher v3.1 / SpeedPacker (really almost identical to 3.1)
+Time Cruncher hacks (FBI/TRI/RDL/2000AD/HTL/Relax/F4CG/HSCG/HSCG-FE/TDF)
+Time Cruncher hacks (ATC/Triton/Triad/PC/Entropy/Mule/Agile/S451/Ikari)
+Time Cruncher hacks (Fast Pack'Em v2.1/Hotware)
+Time Cruncher unknown variants (2061/2074)
+Time Cruncher 2MHZ! (Stoat&Tim v1/v2)
+TinyCrunch/ChristopherJam v0.9 / v1.0 / v1.?
+TKC Bytepress v1.0 / v2.0
+TMC Ultimate Linker
+TMM Packer
+Topaz Maimer v1.x/v2.3
+Total Packer v1.X/v2.0
+TrashCan v1.x / v2.x / Unknown variant (Abuzecrunch variants)
+Trianon Cruncher
+Trianon Packer (2 variants) / v2.x / v3.x
+TSB Packer v1.x/v2.1/v3.0
+TSCrunch v1.0/v1.2/v1.3/v1.3.1/v1.3.1-b/v1.3.1-x2
+TSM Packer
+Turbo Packer
+UltraComp 3.0
+Unipacker v1.x / v2.x / v3.x (+sysless and textless)
+VIP 1.x / 2.0 / 3.2
+Visiomizer v6.2 / v6.3
+Warlock Packer
+Winterberg Packer
+Winterberg SpeediCompactor
+Winterberg SpeediCruncher MW1/MW2
+X-Rated Exploding Cruncher v6 (Time Cruncher hack)
+X-Rated PowerCrunch v7.1 / 7.4
+X-Terminator v2.0 / FLT (7Code Zipper, sysless)
+XIP (autostarter, packer)
+XTC Packer v1.0/v2.1/v2.2/v2.3/v2.x G*P/ (+sysless & variable codebytes)
+Zigag Packer
+Zipper 3.0 / 5.0 (aka Chromizer) / 5.0 hack / 5.1 (4 variants) / 8
+Zip Link v2.1 / v2.5
+ZX0 (C64 port in Bitfire) 1.0-alpha/1.0/1.5 (aka Dali 0.1)
+Dali 0.3/0.3.1/0.3.2/0.3.3/0.3.4/0.3.5
+U-Packer II/Entropy
+UA Packer
+Unknown $25 Packer
+Unknown $8e Packer
+Unknown $fd Packer
+Unknown $100 Packer v2.x
+Unknown $100 Packer v3.x
+Unknown $100 Packer v4.x
+Unknown $100 Packer v5.x
+Unknown $101 Packer (sysless)
+Unknown $111 Packer
+Unknown $439 Packer
+Unknown (P3) Packer
+Unknown Oneway packer (2 variants)
+Unknown Taboo Cruncher
+Unknown Taboo Packer
+Unknown Triad Cruncher (maybe by Agile or Light)
+
+-=---------------=-
+* CODERS/CRYPTERS *
+-=---------------=-
+Abyss Coder v1/v2
+AEK Coder v1.1 / v2.0
+ALS Coder
+ASC/SCF Protector v1.14
+BonanzaBros Coder
+C+C Coder
+Change Protector v2.0
+CIA Crypt v2.x (formats disk if $0317 vector is altered, by a cart)
+CFB Coder v1 (+hacks) / v2
+CNET Fixer Coder
+Cobra/SCG Coder
+DD Intro Coder
+DSCompware Coder
+Exact Coder
+Excalibur 666 Coder
+Excell/Ikari Intro Coder
+Exploding Coder
+FCC Coder (2 variants)
+FCG Coder (3 variants)
+FCG ExProtect
+FCG Checksum Protector ("evil" version of H.Leise, formats disk on failure)
+FDT Coder
+Flash Protector v3.3
+FP Coder
+FSW Protector
+GrafBinaer Coder
+GSS Coder v1.2
+H.Leise Protector v1.1
+HTL Coder
+ICS Drive 8 Coder
+ILS/RND Coder
+Jazoo Coder
+KGB Coder
+LST Coder v1.x / v2.x
+MSI Coder
+OUG Coder (autostarter)
+PIT Coder
+Plasma Coder
+Polonus Quartet Protector
+PWR Coder (formats disk on failure)
+Pyra Coder v1.x / v2.x
+Orion Coder
+Skyline Protector
+SPC/FCS Coder
+SPC Protector
+STL Protector (formats disk on failure)
+T.L.R. Protector v1 / v2
+TAT Coder
+TFG Coder
+THS BitCoder
+TMC Coder
+Triangle Coder
+TSM Lamer Scrambler
+WDR Lamer Killer
+WDR Soft Protector
+WGI Coder
+XDS Coder v1 / v2 / v3
+XDS Coder k1 / k2 / k3
+Yeti Coder
+WHO Coder
+Unknown $420 Coder
+Zero Coder
+
+-=------=-
+* INTROS *
+-=------=-
+711   IntroDesigner3
+BN 1872 (intromaker)
+DSCompware Super-TitleMaker
+F4CG  (f4cg-23)
+FLT   (flt-01)
+G*P   (gp-02)
+Relax (relax-01,-02)
+S451  (s451-09)
+Triad (triad-01,-02,-05)
+Ikari (many by Excell/Ikari, ikari-06 by Tri-Dos)
+
+-=--------------------=-
+* OTHERS / NOT PACKERS *
+-=--------------------=-
+64'er Autostarter
+AFLG/M.Pall Autostarter
+BetasSkip Autostarter
+BlackAdder header
+BHP Virus
+Boa Virus
+Bula Virus
+Coder Virus
+CruelCrunch headers (various)
+GCS Autostarter (2 variants)
+File Linker / Agony
+HIV Virus
+SIR Combine v1.x / v2.x / v3.x
+Time Cruncher headers (BB/ILS/ANM/Vikings)
+WCC Modem Converter
+
+-=------------------------------=-
+* OTHER IDENTIFIED-ONLY PROGRAMS *
+-=------------------------------=-
+AGPX Compiler
+Austro/Blitz Compilers
+Basic64 Compiler
+BasicBoss Compiler
+CC65 Compiler (many versions)
+DTL-64 Compiler
+FinalCart Loader (Unknown version)
+IsePic Loader
+Hypra Compiler
+LaserBasic Compiler
+Oscar64 Compiler (4 variants)
+PetSpeed Compiler
+Plush Emu-Fuxx0r v1/v2
+Power C Compiler
+Speed Compiler
+Speedy 64 Compiler
+Password Protector: Cop Shocker
+Password Protector: FileProtect v1.0/Syncro
+Password Protector: J-Coder v1.0/JCH
+Password Protector: Lamer-Protection/FLT
+Password Protector: Snacky
+Password Protector: TCD
+Password Protector: Time Coder/Trap
+
+-=[]=---------------------------------------------------------------------=[]=-
+
+Exomizer dynamically generates the unpacker code so there are many variants.
+Exomizer desfx actually works in a different way, it checks for the Stack
+Pointer to know if the unpacker has been reached.
+Use Exomizer desfx if UNP64 fails, but shouldn't happen.
+
+PUCrunch also has variable code, I've tried to manage all variants aswell,
+including an unknown version to me, probably an older version.
+
+Other variable code unpackers are: Unipacker, Lightmizer, Visiomizer...
+These have the option to not include the sysline and to "loadback" to another
+address than $0801. These are handled aswell but the loadaddress must be the
+same as the startaddress to easily find the startup code.
+
+Also keep in mind that many names in the supported list are only my guessing
+and it's highly possibile that I've made up some names. Any help identifying
+correct packers' names is appreciated.
+
+-=[]=---------------------------------------------------------------------=[]=-
+HISTORY
+
+1.00 - 2.19 not public betas, no history (first implementation 2008.09.12)
+New scanners added almost on a daily basis for more than a year.
+First beta testers were Overkiller/HF and Jazzcat/ONS.
+
+
+2.20  - 2010.03.17
+- first public release at CSDb.
+- major code cleanup of all scanners
+Thanks to CountZero for support and Groepaz for providing corrected makefile,
+which I have further expanded.
+
+
+2.21 - 2010.03.26 - 20010.05.03
+- better parsing of scanner functions
+- all printf() in scanners moved on a single source, to have a single string
+  pool, thus reducing a bit the final exe size (about 16kb, oh well ;)
+
+Scanners added:
+- Abyss Coder (2 variants, similar to ASC/SCF)
+- Graf Binaer Coder aka F4CG compactor 2.0 (2 variants, one of which needed
+  basic ROM, patched on the fly to avoid it)
+- Starline Coder (formats drive 8 on failure, patched to avoid it)
+- SPC/FCS Coder
+- MCCracken Compressor+Coder
+- Time Cruncher 3.x/Triad (nth variant, similar to TC3/Relax but at $812)
+- Time Cruncher 3.x/PC (could be even a Master compressor/TC1 hack, dunno)
+- Action Replay 4 & Unknown Cart Split Loader (generates 1 file from 2)
+- FloraSoft (FSW) packer/coder, 2 versions.
+- TSB Packer v2.1
+- Zipper 5.0 Hack
+- Zipper 5.1/Xenon
+- JAP 2.0/Agony
+- BAM Compacker
+- BAM Reductor v3.0 (2.0 is identical) / v3.3
+- Cobra/SCG Coder
+- FX Bitstreamer
+- 64'er v1.2 / v1.3 / v1.4
+- 64'er Special v1.5
+- Kompressmaster/BB
+- Unknown $100 Packer v3.x
+Scanners revised:
+- ECA: better scan of return address.
+- FileCompactor III/TMC: also handles sysless prgs.
+- Beta Dynamic 2.x: handles "loadback" files (f.e. Digital Talk chapters)
+- CruelCrunch/Fast: now detects another variant.
+- Time Cruncher 5.x: better scan of return address.
+- Zipper 3.0: start of memory wasn't set.
+- TSB Packer v3.x (was 2.x, verified with TSB3.0/Giants)
+- Jazzcat Packer: expected $01==#$34 (after JCT Cruncher); fixed a particular
+  case on return address == $0124, where it executes a RUN instead.
+- ABCruncher: better entrypoint detection for sysless prgs.
+- Dark Packer 2.x (was Unknown $02) & Dark Packer 3.1 identified.
+- Unknown $8e Packer: better scan of end address.
+
+
+2.22 - 2010.05.04 - 2010.06.11
+- fix: when EndAddress is $0000 actually means $10000 so it needs to be set
+  to $10000. Previous check was bugged, it used $00/01 content as a pointer.
+- sysline with simple calcs (10*256) are resolved. 2 operands, +-*/^ only.
+
+Scanners added:
+- 64'er Autostarter
+- 64'er v1.5
+- BitStreamer 1.1
+- ByteBuster 4.x/Triad (variable code)
+- ByteStrainer
+- Cadaver Packer
+- FSW Protector (formats drive 8 in case of failure or if a cart is detected)
+- G-Packer/Oxyron
+- Jedi Linker v1.x / v2.x (v2 needed Basic ROM, patched)
+- Jedi Packer
+- Mekker
+- PET Packer (similar to Section 8)
+- Pride Packer
+- SIR Combine (splits the combined prg into all the prgs linked inside)
+- SPC Protector
+- Spy Packer
+- StarCrunch
+- Super Compressor / Equal Chars Hack
+- Super Compressor / Equal Sequences Hack
+- Time Cruncher 3.x/Entropy (similar to SIRcrunch3)
+- Time Cruncher 3.x/Mule
+- Trashcan Unknown Variant (dINO/FLT)
+Scanners revised:
+- BitImploder: now detects Chrysagon/X-Ray variant. Start of memory wasn't set.
+- CruelCrunch: better scan of return address.
+- DarkSqueezer v2.2 identified (was DarkSqueezer/Generic hack)
+- Exploding Cruel 2.6 (was Exploding Cruncher 1.x): start of memory wasn't set.
+- File Press Expert: now detects one more variant.
+- Flexible Code Compactor (was FileCompactor III/TMC) original found on 64'er.
+- Sledgehammer 1.0: now detects more variants.
+- TCS Crunch 2.x: now detects one more variant.
+- Time Cruncher / Triumwyrat: more generic id, better scan of return address.
+- Time Cruncher 4.4: now detects a BROKEN variant (ldy instead of ldx, genial!1)
+
+
+2.23 - 2010.06.12 - 2010.07.30
+- found a Time cruncher hack expecting registers set by JSR $FD15 ($31/$30/$ff),
+  now it's handled correctly in pass 1.
+- in verbose mode, now also number of iterations and total cycles taken by the
+  simulated CPU are printed, just to see which is the slowest&fastest unpacker.
+- raised max iterations to support VERY intensive unpackers like ALZ64, worst
+  testcase I found needs 27097007 (0x019D77AF) iterations to finish unpacking.
+  This cruncher isn't really meant for crunching programs ranging from $0801 to
+  $ff00 due to its slowness, but still has to be supported even when abused =)
+  New max value is set to 0x02000000, should be more than enough for anything
+  that actually reaches end of unpacking, and won't cause too much delay with
+  programs that can't be really unpacked or with endless loops.
+- raised max recursion (parameter -c) to 16.
+- when return address is $a7ae (RUN), if the unpacker sets start of basic
+  pointers $2b/$2c to something different than $0801, it will be printed.
+  In any case, if the new basic sysline can't be resolved or does not exist,
+  "RUN" will be displayed instead of $a7ae.
+  For example: ($a7ae)->(new basic start $4001)->RUN
+
+Scanners added:
+- 4Code Zipper v2.S
+- 4WD-Soft Packer
+- 64'er (Happy-Packer) / Equal Sequences 2.2
+- AFLG/M.Pall Autostarter
+- BN 1872 Packer
+- BN 1872 Intro
+- CNCD Classic Packer
+- CruelCrunch / RND variant
+- DarkSqueezer / G*P
+- DSC Packer v2
+- ECA / Old Packer
+- Excalibur 666 Coder
+- Excalibur 666 Packer
+- Excell/Ikari Intro (many with similar reloc code)
+- FLT-01 intro
+- Ikari-06 Intro (Tri-Dos)
+- FCG ExProtect
+- FX Bytepress / Seen variant
+- FinalCart 3 Loader (id only)
+- HardPacker/Caution v1.0
+- Galleon's FW4C V3.0/V3.1 (sysless&loadback)
+- GCS Packer (2 variants)
+- GCS Autostarter (2 variants)
+- Helmet/TempesT v2.x
+- Loadstar Packer
+- Loadstar Linker v2.0
+- MSCrunch v1.5 / ABS variant
+- Oneway Makt-Link v2.0
+- QuickPacker/Caution v1.0 (sysless)
+- ScreenCrunch / FCG (+xor)
+- SledgeHammer v2.x/Trap
+- T.L.R. Packer
+- T.L.R. Protector v1/v2
+- TFG Packer (FCG Packer hack + xor)
+- Time Cruncher 3.x/Agile
+- Time Cruncher 3.x/S451
+- Time Cruncher / Vikings header
+- Trilogic Expert v2.9a/Expert User Club
+- Trilogic Expert / ASS (probably an hack of some v2.x)
+- TSM Packer
+- XTC Packer v2.3 / G*P variant
+- X-Terminator v3.x / ILS (variable codebytes, sys&sysless, 2 variants)
+- Unknown Oneway packer (2 variants)
+- Unknown $107 Packer v2.x (probably by Rockstar)
+- CC65 v2.x(?): new version detected
+
+Scanners revised:
+- 64'er Packer identified, found also an earlier version called Happy-Packer
+  (was 64'er Cruncher and SIR Packer); it's a cart-only packer system
+  (C) 1987 Peter Arndt, found on 64'er disks. Creates many variants by letting
+  user choose different parameters so code is variable. Descriptions and
+  versions updated. Endaddress was one byte too much in some versions, fixed.
+  Many combinations are not supported yet, but will be added for sure.
+- Agile Packer v1.0: Now detects both versions, with sysline and sysless.
+- ATT Packer: now detects also "loadback" versions.
+- CCS Executer: More variants detected
+- CruelCrunch / ILS variant (was CruelCrunch Unknown)
+- DarkSqueezer 2.x: relaxed ID to detect some hacks.
+- DSC Packer: adjusted start of memory, always writes 2 bytes too much.
+- Beeftrucker/Zipplink: separated IDs for $56 (Beeftrucker) and $54 (Zipplink)
+- Falco Paul Packer (was Unknown 20CC Packer) found in many Bros cracks aswell.
+- FCG Packer 1.0/1.1: fixed End of memory, wrong pointer was used.
+- G-Packer/Oxyron: Now detects both versions, with sysline and sysless.
+- Galleon's Equal Chars: special version with an LDY before JMP now is patched.
+- Idiots v1.0 identified (was Unknown $06 Packer), v1.1 is actually v2.1.
+- ILS/RND Coder: now detects 1 variant used in Random imports. Made by Pudwerx?
+- ISC Packer: start of memory wasn't set.
+- Kompressmaster Packer (was 711 Packer) renamed.
+- MasterCompressor/Relax: better return address detection.
+- QuickPacker/Caution v2.5 (was Caution Packer v1.x): version identified and
+  added sysless version.  QuickPacker V2.1 is actually V2.0 sysless.
+- ScreenCrunch: End of memory was always 1 byte too much, fixed.
+- SIR Combine v3.x: version with variable startaddress for each saved prg.
+- Sledgehammer 2.1: better start of memory detection.
+- Supercrunch: better return address detection.
+- Super Compressor / Equal chars: start of memory required adding X register.
+- TCD Link&Crunch: relaxed ID so it's detected even if the 1st SEI is missing.
+  UNP64 doesn't need it, but such programs would fail on a real C64 unless the
+  previous packing layer already stops interrupts.
+- Time Cruncher 3.1: now detects a variant that RUNs the unpacked program.
+- Time Cruncher 4.2/Generic Hack: entry point detected on more sysless variants.
+- Time Cruncher 5.0: now detects another variant.
+- Unknown $fd Packer: now detects also "loadback" versions.
+- Unknown $107 Packer: now detects also "loadback" versions.
+- XTC Packer v1.0/2.2 (was XTC Packer v2.x) renamed, they are very similar with
+  just one difference. v2.4 is just an hack of v2.2 so it's identified as v2.2.
+- XTC Packer v2.3 (was 6Code Zipper) identified.
+- XTC Packer v2.x/G*P (was XTC Unknown, slightly different from 2.3 & 2.3/G*P)
+- Zipper 3.0: again, start of memory wasn't set correctly. Seems that often
+  writes also the byte before the real startaddress ($0fff instead of $1000)
+- Petspeed: More variants detected
+
+
+2.24 - 2010.08.01 - 2011.01.04
+- sysline detection added also during pass 1. Very rarely needed but still
+  happened a couple of times that a sysline re-evaluation is done by the
+  unpacker so can't be avoided.
+- Slightly better $d011 handling, should help bypass more intros.
+- Added handling on more alternative kernal entry points
+- Limit numeric parameters to $ffff
+
+Scanners added:
+- 1001 CardCruncher HTL hack
+- 64'er / Equal sequences 4.0D
+- BHP Virus
+- Bula Virus
+- Byte Baby (BYG Compactor hacked with smaller unpacker)
+- Byterapers Packer v1.x / v2.x
+- CCS Cruncher v1.x/v2.x
+- CCS Super Compressor/Equal Sequences hack
+- Change Protector v2.0
+- CIA Crypt v2.x
+- CruelCrunch v1.4 / Light
+- CruelCrunch v2.3 / TKC
+- Datel UltraCompander Packer (1001 CardCruncher hack)
+- DarkSqueezer/DOM
+- Entropy Packer
+- Expert v1.x (not sure but seems earlier than 2.x, probably Trigsoft UPC1?)
+- Expert / 2061 (unidentified)
+- Facepacker v1.1
+- FCG Packer v1.2 / v1.3
+- FinalCart 1/2/3 Split Freeze (mem $0002-$03ff is not restored, rest is ok)
+- Flash Protector v3.3
+- Flexible Code Compactor v2.x / Kinetic2
+- Galleon's $02 Packer
+- Galleon's $100 Packer
+- Galleon's Alvesta Link (sysless and loadback, bugged loadback prgs are patched
+  on the fly before unpacking)
+- Galleon's Compactor v3.5 (sysless and loadback)
+- Galleon's Compactor v3.6 (sysless and loadback, 2 variants)
+- Galleon's Whom Packer 1.0 (sysless)
+- Galleon's Whom Packer 1.1 (sysless)
+- Galleon's Whom Packer 2.x (sysless)
+- Galleon's Whom Packer 4.x (sys+sysless)
+- Gentlemen Stat Packer
+- HIV Virus (you'd better use HIV-Expert 1.0 on the disk if you find this)
+- Huffer v1.0 / FLT
+- Huffer v1.1 / Quick Cruncher
+- IsePic Defroster/Amigo
+- MasterCompressor v3.5 / Channel4
+- Matcham Flexer/229
+- NM156 Packer
+- NM156 Linker
+- Packer 64/Taboo
+- PAN Packer
+- Panoramic Packer v1.0/v2.0/v3.0/v3.1/v3.2
+- Plush Emu-Fuxx0r v1/v2 (ID only, needs a real emulator to run, X64SC or HOXS)
+- Plush Packer
+- Polonus $101 Packer
+- Polonus Quartet Protector
+- Ratt Packer
+- Ratt Linker
+- Rebels Packer
+- Syncro Packer v1.4
+- TKC Bytepress v1.0
+- S451-09 intro
+- Superpack v4
+- Time Cruncher v3.2/S451
+- Time Cruncher v3.x/Ikari
+- Time Cruncher v5.3/Pamoramic
+- THS BitCoder
+- Unknown $25 Packer
+- Unknown $420 Coder
+- Yeti Coder
+
+Scanners revised:
+- 1001 CardCruncher old pack: More variants detected.
+- 711 IntroDesigner3: save location $3fff in $02 to avoid data corruption.
+- ABCruncher: better entrypoint detection even when the SEI is missing.
+- BasicBoss Compiler: More variants detected.
+- CruelCrunch v2.0: better entrypoint detection even when the SEI is missing.
+- DarkSqueezer / Darkfiler v1.0 (was DS/X-Factor, actually by THCM/WOW).
+- DarkSqueezer 2.2/XTC/DOM: Relaxed ID to detect some hacks.
+- Datel UltraCompander Cruncher identified (was 1001 CardCruncher / 2061) and
+  start address correctly set.
+- Datel UltraCompander Compactor identified (was Zenith Packer).
+- ECA: handles RWE hack which uses $fffe vector triggered by a BRK.
+- Equal Byte Compressor v1.2 identified (was ATT Packer, aka EBC+REU256k).
+- Equal Byte Compressor v1.4 (previously not versioned, it's the FLT version).
+- Expert Cart: Relaxed ID to detect some hacks.
+- Exomizer: One more variant detected.
+- Facepacker v1.0 (previously not versioned): end address off by one, fixed.
+- Freeze Machine identified (was Unknown Freezer Cart).
+- Galleon's Compactor v3.8: now detects also "loadback" versions.
+- Galleon's Compactor v3.x (was Unknown $100 v1, seems just an hack of 3.6).
+- ILS Compacker v2.x/v3.x identified (was X-Terminator v3.x / ILS).
+- IsePic: added a variant which isn't even supported by common IsePic onefilers.
+- Kress Cruncher identified (was Unknown $ed).
+- MDG Packer: Better Return address detection in an uncrypted variant.
+- Mr.Cross: More variants detected, f.e. starting at $879.
+- Mr.Z Packer: added one more variant and fixed a bug in start addr. detection.
+- NSU Packer v1.0 / v1.1: both by Crisp/Action, v1.0 is from Beta Dynamic Comp.
+- Packer Optimizer: Now detects another variant.
+- Polonus C64/+4/Amiga Packer: better return address detection.
+- SIR Combine: filenames normalized in 7 bit ASCII.
+- Super Compressor / Equal Chars: More variants detected.
+- Super Compressor / Flexible: More variants detected.
+- Supercrunch: 1 variant detected and better return address detection. Really.
+- Syncro Packer v1.3 identified (was Agile Packer 1.0).
+- TBC Multicompactor v1: More variants detected.
+- Time Cruncher v5.x: better return address detection.
+- Unknown $100 Packer v2.x: Relaxed ID to detect some hacks.
+- Unknown $400 Packer: Relaxed ID to detect some hacks.
+
+
+2.25 - 2011.01.12 - 2011.05.05
+- Fixed a logic bug that only happened on non-packers, causing an endless loop
+  in pass 1; now falls in the max_iter check and will break as expected.
+- fixed possible division by 0 error in sysline detection when "/" was found.
+- Intros are now scanned after packers, to avoid false positives (valid code
+  found inside charpacked files)
+
+Scanners added:
+- Action Packer
+- Agnus $02 Packer (prolly by Kulfon)
+- BeyondForce Packer
+- C+C Coder
+- Frog Packer (also found as E-Compactor v1/BCC)
+- HitMen $02 Packer
+- HitMen $20 linker (leaves dirty mem, some HIT cracks link 2 crunched prgs)
+- (ID Only) Password Protector: Cop Shocker
+- (ID Only) Password Protector: Time Coder/Trap
+- (ID Only) Password Protector: Snacky
+- (ID Only) Password Protector: TCD
+- (ID Only) Password Protector: J-Coder v1.0/JCH
+- (ID Only) Password Protector: Oneway
+- (ID Only) Password Protector: Unknown [F]
+- KGB Coder
+- PAN Packer v2.0 (sysless)
+- Panoramic Equalizer v1.5
+- Pyra Coder v1.x / v2.x
+- ThunderCats Packer
+- Time Cruncher v5.x / Generic Hack (differences in 1st bytes only)
+- Total Packer v1.x
+- VIP v1.x
+- WHO Coder
+
+Scanners revised:
+- 1001 CardCruncher old pack: More variants detected.
+- ABCruncher: Now identifies also DJB/ONS hack.
+- AbuzeCrunch: Changed ID bytes to detect more hacks.
+- Antiram Packer (was GCS Packer) identified.
+- DarkSqueezer v0.x -> DarkSqueezer v0.8, I just found v0.1 (which is identical
+  to TimeCruncher 3.1/2072) and no other version tagged v0.x. There is no 1.0!
+- DarkSqueezer v1.x -> DarkSqueezer v2.1, even v2.0 tags the file as "DS V2.1",
+  there is a DS v1.3 around but it's misnamed, aswell as a 2.0+ which is TC3.1;
+  v2.0 and v2.1 are assumed equal.
+- Expert v2.11 (was Expert/2061) identified, there is a variant with SYS2074.
+- IsePic: Changed ID bytes to detect more hacks.
+- PUCrunch: Now identifies also some generic hacks.
+- Rows Cruncher (was Unknown $152) identified and now detects also SYS version.
+- SIR MasterLinker: Now detects another variant.
+- SledgeHammer v1.x: Relaxed IDs
+- Super Compressor / Equal sequences: fixed bug, now detects more variants.
+- Syncro Packer v1.55 identified (was Agile Packer 1.1).
+- Syncro Packer (was Agile Packer) v1.2: better return address detection.
+- Total Packer v2.0 (was VIP 1.x) identified.
+- XTC Packer 1.0/2.x: Relaxed ID to detect some hacks.
+- Visiomizer v6.2 (was XTC Packer 1.x) identified.
+
+
+2.26 - 2011.05.14 - 2012.02.06
+
+- sysline with exponential address resolved (16E3 becomes 16000)
+
+Scanners added:
+- BetasSkip Autostarter
+- BlackAdder header
+- Chris Noack's Mega Byte Packer: added specific hack found in Laxity warez.
+- Coder Virus
+- Cult Packer
+- DarkSqueezer / Paradroid
+- DarkSqueezer / Sharks
+- DreamTeam Packer (will skip also TDT intro)
+- Gimzo Packer
+- ICS Drive 8 Coder (unpack fails if not loaded from drive 8)
+- LameBoozer (ByteBoozer hack by Emulamer)
+- Paradroid Packer v1.x (sys&sysless) / v2.x
+- Paradroid Linker (used by Sharks/TWG/Online/RTI)
+- PET Cruncher v1.0/v1.1 (used by TDT)
+- PET Linker (used by TDT)
+- Plasma Coder
+- TBC Multicompactor "Automatic Break System" / Manowar
+- Unknown $100 Packer v4.x
+
+Scanners revised:
+- 1001 CardCruncher: bug in entrypoint detection on missing sysline, fixed.
+- Chris Noack's Mega Byte Packer: relaxed ID to detect more hacks.
+- NSU Packer: relaxed ID to detect more hacks.
+- TBC Multicompactor v1: there are some hacks w/o JMP address, RUN forced.
+- Time Cruncher 4.2/Generic Hack: relaxed ID to detect more hacks.
+- Time Cruncher 4.4: now detects also a F4CG hack.
+- Time Cruncher 5.x: better detection of return address on some hacks.
+- X-Rated PowerCrunch v7.1: now detects also a textless hack.
+- Lamer-Protection/FLT 1.7: identified, was Unknown [F]
+- SIR Combine v3.x: crash due to "/" in generated filenames, now it's changed
+  to "_", as well as all other illegal chars in filenames.
+- SIR Compact v4.x: relaxed ID to detect more hacks.
+
+
+2.27 - 2012.03.08 - 2012.08.01
+
+- Added parameter -o to force output filename.
+- ZP Vector $52/$53 initialized pointing to $0300 as expected on a C64, some
+  program is relying on it.
+- SBX illegal op fixed: doesn't use carry while subtracting, but must be set.
+- Added flags value in debug trace (-x) to help debugging SBX behaviour =)
+
+Scanners added:
+- Anticom Packer
+- CNET Fixer Coder
+- Dr. Zoom Packer v1.0
+- Exact Coder
+- Flexible Code Compactor v3.x / Bandit+CCS
+- Speedy 64 Compiler
+- Tim Crunch
+- TKC Bytepress v2.0
+- Triangle Coder (no sysline but a poke807,8; uses Basic ROM and SBX illegal op)
+- XDS Coder v3.0
+- Unknown $439 Packer
+
+Scanners revised:
+- AR/FC split freezes: if loader name is 16 chars long, the main file name has
+  last letter truncated. Now it tries to look for the truncated name. for ex:
+
+  (unpacking "DREISATZRECHNUNG.prg" + "-DREISATZRECHNUN.prg")
+  -DREISATZRECHNUNG.prg not found
+  -DREISATZRECHNUNG.prg.prg not found
+  -DREISATZRECHNUNG not found
+  Onefiling with -DREISATZRECHNUN.prg
+
+  (unpacking "DREISATZRECHNUNG" + "-DREISATZRECHNUN")
+  -DREISATZRECHNUNG not found
+  -DREISATZRECHNUNG.prg not found
+  -DREISATZRECHNUNG not found
+  -DREISATZRECHNUN.prg not found
+  Onefiling with -DREISATZRECHNUN
+
+- CFB Coder v1: better detection of return address on some hacks.
+- gp-02 intro: relocation entry point can be variable, found 2 variants, fixed.
+- Super Compressor / Flexible: better detection of return address.
+- Super Compressor / Equal sequences (sysless): better detection of entry point.
+- Visiomizer v6.3: Return address detection was completely wrong, and also
+  could lead to wrong start of memory set to $0800 (default if return isn't set)
+- WGI Coder: ID now detects also TWG modification.
+
+
+2.30 - 2012.08.14 - 2013.08.03
+
+- parameter -m to force iter_max
+
+Scanners added:
+- Boa Virus
+- Bongo Cruncher (all 4 stubs supported)
+- Exploding Cruncher v2.2
+- FSW Packer v3.0
+- Jemasoft Basic Packer
+- Super File Linker
+- TAT Coder
+- Ultimate SledgeHammer PC v1.1/Sorex
+- Unknown $100 Packer v5.x
+
+Scanners revised:
+- ByteBoozer: fixed off-by-one end address, now handles versions created by
+  BB PC 1.1 with option -c (no depack effect) and -e (loader init);
+- Exomizer: Now supports also Exomizer 2.0.7 files packed from $0200-ffff,
+  previously only files starting from $0400 were possible.
+  Fixed the order of scanners checking, first Exomizer is checked, then generic
+  $0801 packers, else some sysless Exomizer file weren't identified as Exomizer
+  but as generic packer.
+- LamerBoozer, missing "r" in name fixed =).
+- Helmet: print unpacking message in verbose mode.
+- Sledgehammer 2.1: now identifies also relocated versions at any $xx0d address.
+
+
+2.31 - 2013.09.27 - 2015.06.10
+
+Scanners added:
+- Doynamite v1.1
+- Doynamite/Bitnax v1.0
+- Dream Packer v2/Aspect: just a hack of Sledgehammer v1.
+- ByteBoiler hack by SCS
+- RFO Coder
+
+Scanners revised:
+- Final/Super Compressor Equal Chars: allow different unpack address than $100.
+- PUCrunch/Short: now detects modified version with basic run instead of one
+  direct jmp.
+- PUCrunch (all): Changed end of memory detection, some hacks don't set $2d/$2e.
+
+
+2.32 - 2015.07.30 - 2016.06.01
+
+Scanners added:
+- 64'er / Equal sequences 4.0DB (there are too many options in this packer!)
+- Buraki $02 Packer (similar to Hitmen $02 but at $07e9, prolly another hack)
+- ByteBoozer 2.0
+- Nibb-it/Silicon
+- Sledgehammer 2.4 (2.3 hack? same code but moved around)
+- TFG Coder
+- T.L.R. Linker (+sysless/loadback/fullmem)
+- UA Packer
+
+Scanners revised:
+- Exomizer, 2 rare problems:
+  - PSID64 -c uses Exomizer 1.x compression but return address wasn't
+    found correctly, added an exception so now they are unpacked correctly.
+  - Also found that if a return address was at $xx4C or $4Cxx it wasn't found
+    correctly, should be fixed now. Damn backward scan =)
+- Equal Byte Compressor v1.7 (was Unknown $fd Packer) identified.
+- Equal Byte Compressor v1.9 (was Unknown $107 Packer) identified.
+- SIR Combine v3.x: Changed detection to allow ID and dissolving a variant
+  found in TigerDisks, with a different pointer for filenames.
+- TBC Multicompactor v1: better handling of hacked JMP addresses, found at least
+  3 ways to confuse older UNP64.
+
+
+2.33 - 2016.08.01 - 2017.09.03
+
+- Relaxed start of memory detection when ZP pointers are checked after decrunch,
+  it would not be performed if JMP address was detected as lower than $0800.
+
+Scanners added:
+- Admiral P4Kbar/Ferris
+- Plush Packer / short
+- SledgeHammer v1.0/Kreator
+- T.L.R. Subsizer (both 0.5 & 0.6 dirty cruncher added)
+- WDR Lamer Killer
+
+Scanners revised:
+- Marauder Cruncher, Coder: forced entry point in case of deleted sysline.
+- Plush Packer : it's the Fast version, added "/ fast" in output
+- Fast Pack'Em v2.1/Hotware: was Time Cruncher v3.x/Dytec, found by Fred/HVSC.
+- Lightmizer: relaxed ID to detect REM hacks (reported by Comos)
+- Visiomizer 6.2/6.3: Better handling of entry point and unpacker address.
+
+
+2.34 - 2017.09.12 - 2018.05.28
+
+- Added findsys, small side tool to extract linked PRGs by finding the basic
+  SYS line inside PRGs, apart the one at $0801. Some particular syslines are
+  handled, like 1001 CardCruncher, Bitimploder, ABCruncher et al.
+- Added more BASIC ROM entry points for detecting RUN.
+- In some cases, when specifying -a, dumped memory started from $0800 and not
+  from $0002 due to a forgotten commented check. It's just a debugging option,
+  so probably nobody noticed it, apart me, in any case.
+- 6502emu.c: V flag and BVS opcode were wrong all this time, fixes taken
+  from Exomizer v3.0 sources =) Apparently there are not many using BVS in
+  unpackers, so it was never noticed so far, while Exomizer v3.x uses it.
+- In verbose mode, when a pointer was monitored for start address, it was shown
+  many times even when it didn't change. Reworked to output only actual changes.
+
+Scanners added:
+- Exomizer v3.x
+- File Linker / Agony (SDA, splits all the prgs linked inside)
+- MegaCruncher v2.3/SCW
+- NuCrunch/ChristopherJam (v1.0 and also some older testcases covered)
+- Zero Coder
+- Zip Link v2.1 / v2.5 (Lord Brainwave/Paradise)
+
+Scanners revised:
+- Fixed a bit of mess on CruelCrunch versioning, renamed:
+  CruelCrunch 1.3/S451 -> CruelCrunch 1.0 (original CC by Galleon+Synchro)
+  CruelCrunch 1.0      -> CruelCrunch 2.2 (CC2.5/Crest is a 2.2 hack)
+  CruelCrunch 2MHZ 1.0 -> CruelCrunch 2.2+ / 2MHZ (Oneway+SCS)
+  CruelCrunch / ILS    -> CruelCrunch 2.x / ILS
+  CruelCrunch / RND    -> CruelCrunch 2.x / RND
+  CruelCrunch 1.x      -> CruelCrunch 2.5 / fast (Science451)
+  CruelCrunch / fast   -> CruelCrunch 4.0 / fast (Oregon+Chrome)
+- Renamed Password Protector: Oneway -> FileProtect v1.0/Syncro. The actual
+  name was found already in 2012 by tlr and I never noticed his post on CSDb.
+  <https://csdb.dk/release/?id=57977>
+- Renamed Unknown $400 Packer to PSQ Linker V3.1, thanks to Flex/ALD for
+  helping in solving this.
+- CCS Executer: Better end address detection.
+- Sledgehammer 1.0: relaxed ID, now detects even more hacks.
+- Time Cruncher v3.x / TDF: added return address detection.
+- Time Cruncher v3.x / Unknown: found one weird case of return address lower
+  than unpacker itself, worked around it by forcing the correct retaddr.
+
+
+2.35 - 2018.06.21 - 2019.01.08
+
+- Findsys.c: find also other syslines with addresses different than SYS 2xxx
+
+Scanners added:
+- Inceria Packer v1.2
+- TinyCrunch/ChristopherJam (v0.9 - v1.0)
+- DSCompware Super-TitleMaker
+
+Scanners revised:
+- Exomizer v3.02: different depacker from 3.0, fixed start/end detection.
+- Bitnax: Changed ID bytes to detect also a different version.
+- FCG Packer 1.1 is actually called v3.0 (released also as Radwar Packer v3.0)
+- T.L.R. Subsizer (added support for 0.7 with changed sysline and entry point)
+- Ultimate SledgeHammer PC v1.1/Sorex: found it can be also sysless, added
+  support for it.
+
+
+2.36 - 2019.01.15 - 2022.06.30
+- Findsys.c:
+  - better check for sysline addresses
+  - added detection for sysless Mr.Cross-linker
+  - now if the created prg has a sys line and begins at $0801, .prg is appended,
+    if it begins at a different address, .address is appended. Useful to
+    identify loadback Mr.Cross
+- Corrected end address (mis)calculation on certain packed files which ended at
+  $ffff inclusive but were saved as ending at $fffe. Affected packers were f.e.
+  XTC packer, Visiomizer, and others.
+- Added a specific workaround for a custom pre-decompression stub in some G*P
+  cracks using Exomizer 3.02+ which expects reg Y=3 after calling JSR $A1BE, or
+  it would fail unpacking.
+
+Scanners added:
+- Trilogic Expert / Trigsoft (unknown variant)
+- CC65 2.18 (compiler detection only)
+- Pico Packer
+- ZX0 (C64 port in Bitfire) 1.0-alpha/1.0/1.5 (aka Dali 0.1)/Dali 0.3/0.3.1
+- TSCrunch v1.0/v1.2/v1.3
+
+Scanners revised:
+- Renamed Bitnax v1.0 to Bitnax v0.4 to reflect the version of Bitfire where it
+  is from. There was a plan about adding support for the actual Bitnax 1.0 but
+  Bitnax 1.0/1.1 revisions were actually broken, and after reporting this, they
+  got removed from Github repo instead of being fixed, so no need for support.
+- Polonus C64/+4/Amiga Packer: corrected detection of return address, start
+  address and end address in some hacks.
+- UniPacker: added workaround to find entry point in sysless prgs without
+  initial SEI instruction. Only found a couple of times but it's easily fixed.
+
+
+2.37 - 2022.09.28 - 2023.09.03
+
+- changed the -l and -u parameter to accept a different filler value, f.ex.
+  unp64 -l0xea -u$60 bla.prg
+  Idea suggested by GI-Joe
+
+Scanners added:
+- PWR Coder, formats disk if sysline is tampered with. Added hack to allow any
+  sysline by forcing the check with itself so it's always "good".
+
+Scanners revised:
+- Dali 0.3.2: minor difference in code but enough to detect the new version.
+- TSCrunch v1.3.1 (3 new variants from 2023.01.02 github build)
+- Exomizer 3.02+: Relaxed the workaround for G*P custom pre-decompression stub
+  to allow unpacking more variants.
+- U-Packer II/Entropy (was 3code Zipper v2.0): proper name found;
+  fixed off-by-one end address, it saved 1 byte too much.
+- FCG Checksum Protector: Renamed from FCG Protector, proper name found.
+
+
+2.38 - 2023.09.04 - 2023.09.20
+
+- added support for SHX $ffff,Y illegal op used by BitPickler. Only works for
+  that use case and will surely fail for not page aligned addresses.
+- Fixed possible bug in the argument parsing for "-u" and "-l". Thanks to
+  Martin Thierer for pointing it and providing the patch.
+- changed the array used to init ZeroPage at start. The previous one was too
+  dirty and broke some depackers like Flash Protector 3.3, now working again.
+
+Scanners added:
+- BitPickler 1.0: Very strange, end part of the code is crunched so it's not
+  accessible, I had to add a workaround to analyze it in main().
+  Working with the only 2 intros found so far "Onscreen 5k" & "X-Tiles", which
+  require an additional workaround to be unpacked, and a couple of tests I made.
+  The packer itself is unstable, most tests I did won't unpack anyway, it's
+  only working on short programs.
+- Dali 0.3.3: (github build 2023.09.05)
+  Now supports also sysless relocated sfx. Smaller than v0.3.2. So far found
+  only used in demo Next Level/Performers. Maybe nobody knows this version yet.
+- ALZ64 altered by Quiss in "Boo!" intro. Not completely working, start
+  address isn't correct, should be $2000. Unpack with -a for now.
+- Power C Compiler (detection only)
+
+Scanners revised:
+- Exomizer 3.02+: Changed again the workaround for G*P custom pre-decompression
+  stub to allow unpacking more variants. Made on purpose? Why swap the LDA/LDY?
+- CCS Bittos V1.0: renamed from CCS Cruncher v2.x, proper name found.
+  Better handling of the return address.
+- CCS Bittos V4.0: renamed from CCS Cruncher v1.x, proper name found.
+- CCS Executer Packer: renamed from CCS Packer, it's actually generated from
+  CCS Executer, which has 4 different payloads, but I have not found how they
+  are being selected.
+- ALZ64: workaround to allow unpacking Phuture/Arise.
+- PUCrunch: Relaxed check to allow unpacking more hacks.
+
+
+2.39 - 2023.10.06 - 2024.01.08
+
+- Fixed one out of bounds that happened only in one occasion, trying to unpack
+  a wrong code which resulted in start of mem = 0; if start of mem gets less
+  than $0002, I was writing at mem-1 and -2, to patch in the loading address.
+  Knowing that I use $0000 as a forced RTS and $0001 is usually not code, a
+  temp workaround is to force always start of mem to $0002 if lower.
+  I blame my lazy coding. I should rework it later.
+
+Scanners added:
+- StarExpert / Fast Freeze: found in Expert 4.1 / 5.x tool disks by Cat & Korsh.
+- Topaz Maimer (v1.x and v2.3 variants) by Scapegoat. Found in Topaz demos.
+- Unknown $fd Packer, found 3 times in The Spirit Preview/ONS
+
+Scanners revised:
+- BitPickler 1.0: added more workarounds to allow unpacking other test programs,
+  tested normal, --tiny, --novis, and combinations.
+  I'm not even sure if what I'm doing is correct but "works for me".
+- Exomizer 3.02+: Nth workaround for G*P custom pre-decompression stub to allow
+  unpacking more variants.
+- TimeCruncher v3.1+ renamed from TimeCruncher 3.1, it's actually a "final"
+  version of v3.1, as said in Galleon hack called "Special Time-Cruncher V3.1"
+- TimeCruncher v3.1 (aka Matcham SpeedPacker, they're really almost the same)
+  renamed from TimeCruncher 3.x/2072 and added check to distinguish SpeedPacker
+  which is also detecting Henk/HTL and RWE variants, now redundant and removed.
+- Time Cruncher v3.x / TDF: added workaround for better detection of return
+  address in some altered variants.
+
+
+2.40 - 2024.02.27 - 2025.06.03
+
+- Findsys: the detected sys value must be something valid, $0801 or higher.
+- Fixed a visual bug in printing "exo endaddr=$ffff" mutiple times when
+  unpacking exomizer in verbose mode, now it gets printed only when the endaddr
+  actually changes.
+
+Scanners added:
+- Orion Coder: Found in The Terminator (re)cracks. It uses track 18 content to
+  check if it's tampered with then trashes trk18/1 (not all disk). The correct
+  text is found in memory xored, so it can be tricked in finding the correct
+  data and work anyway despite the disk content. I don't know if it's a backdoor
+  or simply an oversight but that is irrelevant to me.
+- Dali (all versions): extended a bit the range for sysless versions.
+  if a binary started at $0801 and start address at $080d, it would have
+  been found, but not if the binary started at $0800.
+- Dali 0.3.4: (github build 2024.07.11) added small+effect stub detection.
+- Dali 0.3.5: (github build 2024.10.05) added small+effect stub detection.
+- LZMPi/MartinPiper v3.x (version at github 7 feb 2025), 4 modes (E, M, RM, UM)
+- TAG Cruncher/Usul
+- Baskerville Cruncher v0.6x/v07.x
+- Added another workaround for G*P custom pre-decompression stub when found
+  linked to Dali and not Exomizer. It should be 100% automatic apart in 1 case
+  where it needs 2 passes, 1st pass to remove the encryption layer, 2nd pass to
+  actually unpack the Dali compression layer.
+  Dali can also be found modded, starting from $07d7 instead of $080d.
+  In case it fails try using use these params:
+  unp64 -v -R$7fd -t$6a name.prg
+  It might be needed adding also -u in at least one case I tested, which has
+  the intro not at $0800 hence leaving some crunched data at $0800.
+  At $07fd there is the jmp to start the intro. If possible it will be printed
+  on screen when using -v parameter, example:
+  "Modded Dali version detected, possible start $1667"
+
+Scanners revised:
+- Exomizer 3.02+: Added another workaround for G*P custom pre-decompression
+  stub, this time everything was made with the purpose of fucking up Unp64 as
+  it uses several ZP variables not inited by me, but it can be bypassed.
+- TSM coder renamed to TSM Lamer Scrambler, original program found at CSDb.
+- ECA Compactor/Linker: This is the correct name, "Compacker" was not correct.
+- TSCrunch v1.3.1: corrected identification for the 2025 build, one byte diff.
+
+
+2.41 - 2025.06.23 - 2026.03.23
+
+Scanners added:
+- TinyCrunch 1.? (Unknown version) found in at least 2 programs by Soci/SGR.
+  Work in progress, start/end addresses might be wrong. Need more testcases.
+- Loadstar StarLinker (wip, needs to fix end of mem pointer)
+- Compress64k/Hermit v1.1
+- (ID Only) AGPX Compiler (from V2.5.0 renamed to Yormesyx64 but discontinued)
+- (ID Only) Oscar64 Compiler (4 variants)
+
+Scanners revised:
+- Workaround for G*P custom Dali stub, now has indirect jmp to $04ac but the
+  actual address is crypted. For now I'm just saving from $04ac so the address
+  is visible. What a waste of time from both sides =)
+- Found another slightly different PUCrunch/Short init code, now supported.
+- 1001 CardCruncher Old Packer: Added a workaround to decide for start address
+  when there's something like JSR $E453 JMP $0803, JSR $Exxx must be ignored.
+
+
+2.42 - 2026.04.02 - 2026.05.06
+
+Scanners added:
+- Compress64k/Hermit v1.2
+- FastPacker v1.0 (lzss_compressor by Repose/Style)
+
+
+-=[]=--- iAN CooG/HVSC^C64Intros ---=[]=-
+   *> http://iancoog.altervista.org <*
+http://hvsc.c64.org|http://intros.c64.org
+
