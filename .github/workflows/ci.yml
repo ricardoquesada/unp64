@@ -39,13 +39,13 @@ jobs:
           update: true
           install: >-
             mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-make
+            make
 
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          mingw32-make -C src CFG=Release
+          make -C src CFG=Release
 
       - name: Build (Linux / macOS)
         if: matrix.os != 'windows-latest'
@@ -56,13 +56,19 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          output=$(./src/Release/${{ matrix.artifact_name }} 2>&1 || true)
-          echo "$output"
-          echo "$output" | grep -i "UNP64"
+          if [ ! -f "src/Release/unp64.exe" ]; then
+            echo "Error: src/Release/unp64.exe was not created."
+            exit 1
+          fi
+          ./src/Release/unp64.exe 2>&1 | grep -i "UNP64" || true
+          echo "Windows build verified."
 
       - name: Verify Executable (Linux / macOS)
         if: matrix.os != 'windows-latest'
         run: |
-          output=$(./src/Release/${{ matrix.artifact_name }} 2>&1 || true)
-          echo "$output"
-          echo "$output" | grep -i "UNP64"
+          if [ ! -f "src/Release/${{ matrix.artifact_name }}" ]; then
+            echo "Error: src/Release/${{ matrix.artifact_name }} was not created."
+            exit 1
+          fi
+          ./src/Release/${{ matrix.artifact_name }} 2>&1 | grep -i "UNP64" || true
+          echo "Build verified."
