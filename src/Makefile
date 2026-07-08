@@ -19,7 +19,7 @@ ifeq ($(CFG),Debug)
   TARGET = unp64
   C_INCLUDE_DIRS =
   C_PREPROC =
-  CFLAGS = -pipe  -Wall -g2 -O0
+  CFLAGS = -std=gnu17 -pipe  -Wall -g2 -O0
   RC_INCLUDE_DIRS =
   RC_PREPROC =
   RCFLAGS =
@@ -34,7 +34,7 @@ ifeq ($(CFG),Release)
   TARGET = unp64
   C_INCLUDE_DIRS =
   C_PREPROC =
-  CFLAGS = -pipe  -Wall -g0 -O3
+  CFLAGS = -std=gnu17 -pipe  -Wall -g0 -O3
   RC_INCLUDE_DIRS =
   RC_PREPROC =
   RCFLAGS =

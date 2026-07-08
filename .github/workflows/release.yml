@@ -60,12 +60,12 @@ jobs:
         run: |
           # Build for x86_64
           make -C src cleanall
-          make -C src CFLAGS="-arch x86_64 -O3 -pipe -Wall" LDFLAGS="-arch x86_64 -pipe"
+          make -C src CFLAGS="-std=gnu17 -arch x86_64 -O3 -pipe -Wall" LDFLAGS="-arch x86_64 -pipe"
           mv src/Release/unp64 src/unp64_x86
 
           # Build for arm64
           make -C src cleanall
-          make -C src CFLAGS="-arch arm64 -O3 -pipe -Wall" LDFLAGS="-arch arm64 -pipe"
+          make -C src CFLAGS="-std=gnu17 -arch arm64 -O3 -pipe -Wall" LDFLAGS="-arch arm64 -pipe"
           mv src/Release/unp64 src/unp64_arm64
 
           # Combine into universal binary
