@@ -37,6 +37,7 @@ jobs:
         with:
           msystem: MINGW64
           update: true
+          path-type: inherit
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-make
@@ -45,7 +46,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          mingw32-make -C src CFG=Release SHELL=bash
+          mingw32-make -C src CFG=Release
 
       - name: Build (Linux / macOS)
         if: matrix.os != 'windows-latest'
@@ -57,24 +58,20 @@ jobs:
         shell: msys2 {0}
         run: |
           ls -la src/Release/ || true
-          if [ -f "src/Release/unp64.exe" ]; then
-            ./src/Release/unp64.exe 2>&1 || true
-          elif [ -f "src/Release/unp64" ]; then
-            ./src/Release/unp64 2>&1 || true
-          else
-            echo "Error: Executable not found in src/Release/"
+          if [ ! -f "src/Release/unp64.exe" ]; then
+            echo "Error: Executable src/Release/unp64.exe was not created."
             exit 1
           fi
+          ./src/Release/unp64.exe 2>&1 | grep -i "UNP64" || true
           echo "Windows build verified."
 
       - name: Verify Executable (Linux / macOS)
         if: matrix.os != 'windows-latest'
         run: |
           ls -la src/Release/ || true
-          if [ -f "src/Release/${{ matrix.artifact_name }}" ]; then
-            ./src/Release/${{ matrix.artifact_name }} 2>&1 || true
-          else
-            echo "Error: Executable src/Release/${{ matrix.artifact_name }} not found."
+          if [ ! -f "src/Release/${{ matrix.artifact_name }}" ]; then
+            echo "Error: Executable src/Release/${{ matrix.artifact_name }} was not created."
             exit 1
           fi
+          ./src/Release/${{ matrix.artifact_name }} 2>&1 | grep -i "UNP64" || true
           echo "Build verified."
