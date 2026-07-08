@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: unp64
+          - os: ubuntu-24.04-arm
+            artifact_name: unp64
+          - os: macos-latest
+            artifact_name: unp64
+          - os: windows-latest
+            artifact_name: unp64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          mingw32-make -C src CFG=Release
+
+      - name: Build (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          make -C src CFG=Release
+
+      - name: Verify Executable
+        if: matrix.os != 'windows-latest'
+        run: |
+          ./src/Release/${{ matrix.artifact_name }} 2>&1 | grep -i "UNP64"
+
+      - name: Verify Executable (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          ./src/Release/${{ matrix.artifact_name }} 2>&1 | grep -i "UNP64"
