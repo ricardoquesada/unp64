@@ -52,13 +52,17 @@ jobs:
         run: |
           make -C src CFG=Release
 
-      - name: Verify Executable
-        if: matrix.os != 'windows-latest'
-        run: |
-          ./src/Release/${{ matrix.artifact_name }} 2>&1 | grep -i "UNP64"
-
       - name: Verify Executable (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          ./src/Release/${{ matrix.artifact_name }} 2>&1 | grep -i "UNP64"
+          output=$(./src/Release/${{ matrix.artifact_name }} 2>&1 || true)
+          echo "$output"
+          echo "$output" | grep -i "UNP64"
+
+      - name: Verify Executable (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          output=$(./src/Release/${{ matrix.artifact_name }} 2>&1 || true)
+          echo "$output"
+          echo "$output" | grep -i "UNP64"
