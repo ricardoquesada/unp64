@@ -1,15 +1,41 @@
-/target/
-**/*.rs.bk
+# Build output directories
+src/Debug/
+src/Release/
+Debug/
+Release/
 
-tests/test*.prg
-test_output.asm
-tmp/
+# Compiled objects, libraries, and executables
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
 a.out
 
+# Target binaries
+/src/unp64
+/src/unp64_x86
+/src/unp64_arm64
+/unp64
+
+# UNP64 unpacked output files
+*.prg.[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]
+
+# Temporary & test files
+tmp/
+tests/test*.prg
+test_output.asm
+
+# OS & Editor files
+.DS_Store
 .idea/
-.DS_store
-
-site/
-.cache/
-
-*.exe
+.vscode/
+.vs/
+*.suo
+*.user
+*.ncb
+*.opt
+*.aps
