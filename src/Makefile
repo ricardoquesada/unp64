@@ -320,9 +320,11 @@ clean:
 print_header:
 	@echo ----------Configuration: unp64 - $(CFG)----------
 
+$(SRC_OBJS): | directories
+
 directories:
-	-@mkdir "$(OUTPUT_DIR)"
-	-@mkdir "$(OBJ_DIR)"
+	-@mkdir -p "$(OUTPUT_DIR)" 2>/dev/null || mkdir "$(OUTPUT_DIR)" 2>/dev/null || true
+	-@mkdir -p "$(OBJ_DIR)" 2>/dev/null || mkdir "$(OBJ_DIR)" 2>/dev/null || true
 
 $(OBJ_DIR)/6502emu.o: 6502emu.c	\
 6502emu.h	\
