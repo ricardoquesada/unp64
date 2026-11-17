@@ -19,7 +19,7 @@ ifeq ($(CFG),Debug)
   TARGET = unp64
   C_INCLUDE_DIRS =
   C_PREPROC =
-  CFLAGS = -pipe  -Wall -g2 -O0
+  CFLAGS = -std=gnu17 -pipe  -Wall -g2 -O0
   RC_INCLUDE_DIRS =
   RC_PREPROC =
   RCFLAGS =
@@ -34,7 +34,7 @@ ifeq ($(CFG),Release)
   TARGET = unp64
   C_INCLUDE_DIRS =
   C_PREPROC =
-  CFLAGS = -pipe  -Wall -g0 -O3
+  CFLAGS = -std=gnu17 -pipe  -Wall -g0 -O3
   RC_INCLUDE_DIRS =
   RC_PREPROC =
   RCFLAGS =
@@ -325,9 +325,11 @@ clean:
 print_header:
 	@echo ----------Configuration: unp64 - $(CFG)----------
 
+$(SRC_OBJS): | directories
+
 directories:
-	-@mkdir "$(OUTPUT_DIR)"
-	-@mkdir "$(OBJ_DIR)"
+	-@mkdir -p "$(OUTPUT_DIR)" 2>/dev/null || mkdir "$(OUTPUT_DIR)" 2>/dev/null || true
+	-@mkdir -p "$(OBJ_DIR)" 2>/dev/null || mkdir "$(OBJ_DIR)" 2>/dev/null || true
 
 $(OBJ_DIR)/6502emu.o: 6502emu.c	\
 6502emu.h	\
