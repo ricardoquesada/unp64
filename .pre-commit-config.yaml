@@ -1,0 +1,80 @@
+# Pre-commit configuration for UNP64 (official upstream mirror).
+#
+# Architectural boundary:
+# - Upstream files (`src/**` and `unp64.txt`) preserve iAN CooG's original CRLF
+#   line endings and C formatting so upstream release imports remain minimal,
+#   surgical diffs. They undergo non-mutating structural, portability, XML,
+#   build-graph sync, and native Release build checks.
+# - Mirror-owned files (`.github/**`, `*.md`, `.gitignore`, `tools/**`, and this
+#   config) enforce strict LF line endings, clean whitespace, YAML, and workflow
+#   static analysis.
+
+default_install_hook_types: [pre-commit]
+minimum_pre_commit_version: '3.2.0'
+
+repos:
+  # 1. Repository safety, filesystem portability, and text hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-illegal-windows-names
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: check-added-large-files
+        # Largest source file is ~95 KB (_Scanners.c); stripped unp64 binary is ~305 KB.
+        args: ['--maxkb=250']
+      - id: detect-private-key
+      - id: fix-byte-order-marker
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-yaml
+      - id: check-xml
+        name: check xml and Visual Studio project files
+        types: [text]
+        files: '(?i)\.(xml|vcproj)$'
+      - id: mixed-line-ending
+        alias: mixed-line-ending-upstream
+        name: check consistent line endings (upstream files)
+        files: '^(src/|unp64\.txt$)'
+        args: ['--fix=no']
+      - id: mixed-line-ending
+        alias: mixed-line-ending-mirror
+        name: enforce LF line endings (mirror files)
+        exclude: '^(src/|unp64\.txt$)'
+        args: ['--fix=lf']
+      - id: trailing-whitespace
+        exclude: '^(src/|unp64\.txt$)'
+      - id: end-of-file-fixer
+        exclude: '^(src/|unp64\.txt$)'
+
+  # 2. GitHub Actions workflow static analysis (.github/workflows/*.yml)
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+
+  # 3. UNP64 mirror invariants, artifact guard, and native Release build
+  - repo: local
+    hooks:
+      - id: forbid-artifacts-and-secrets
+        name: forbid compiled binaries, C64 dumps, and signing certificates
+        entry: Compiled artifacts, C64 test images, or signing certificates must not be committed
+        language: fail
+        files: '(?i)\.(o|obj|a|lib|so|dylib|dll|exe|p12|pfx|cer|keychain(-db)?|prg(\.[0-9a-f]{4})?|d64|t64|crt|vsf)$'
+
+      - id: check-mirror-invariants
+        name: verify mirror portability patches and scanner build graph
+        entry: tools/check_mirror_invariants.py
+        language: script
+        pass_filenames: false
+        files: '^(src/|tools/check_mirror_invariants\.py$)'
+
+      - id: build-unp64
+        name: build and smoke-test unp64 (Release)
+        entry: tools/build_unp64.sh
+        language: script
+        pass_filenames: false
+        files: '^(src/|tools/build_unp64\.sh$)'
+        exclude: '^(src/findsys/|src/.*\.VCproj$)'

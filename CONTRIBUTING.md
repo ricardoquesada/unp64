@@ -12,11 +12,12 @@ Because this repository is a mirror:
 
 We welcome Pull Requests for **repository, build system, and CI infrastructure**, including:
 * **Build system fixes:** `Makefile`, Visual Studio project files, or compiler compatibility.
-* **CI/CD & Release Automation:** GitHub Actions workflows (`ci.yml`, `release.yml`).
+* **CI/CD & Release Automation:** GitHub Actions workflows (`ci.yml`, `release.yml`) and pre-commit checks (`.pre-commit-config.yaml`, `tools/`).
 * **Documentation & Packaging:** `README.md`, build guides, or distribution scripts.
 
 ## Pull Request Guidelines
 
 1. Ensure existing build workflows pass (`make -C src CFG=Release`).
-2. Keep changes focused on repository / build infrastructure.
-3. Submit PRs against the `main` branch.
+2. Install and run pre-commit checks (`pre-commit install && pre-commit run --all-files`).
+3. Keep changes focused on repository / build infrastructure.
+4. Submit PRs against the `main` branch.
