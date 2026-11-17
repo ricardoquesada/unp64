@@ -294,6 +294,7 @@ void Scn_TinyCrunch         (unpstr*);
 void Scn_FileLinkerSDA      (unpstr*);
 void Scn_Inceria            (unpstr*);
 void Scn_ZX0                (unpstr*);
+void Scn_ZX02               (unpstr*);
 void Scn_TSCrunch           (unpstr*);
 void Scn_PWRCoder           (unpstr*);
 void Scn_OrionCoder         (unpstr*);
@@ -302,6 +303,10 @@ void Scn_TAG                (unpstr*);
 void Scn_AEB                (unpstr*);
 void Scn_Comp64k            (unpstr*);
 void Scn_Lzss               (unpstr*);
+void Scn_DuplexCoder        (unpstr*);
+void Scn_BBProt             (unpstr*);
+void Scn_6PackGP            (unpstr*);
+void Scn_SparkPack          (unpstr*);
 
 enum stringpool_id { _I_1001_4
                    , _I_1001_NEWPACK
@@ -399,6 +404,7 @@ enum stringpool_id { _I_1001_4
                    , _I_BYTEBOOZ11C
                    , _I_BYTEBOOZ11E
                    , _I_LAMEBOOZER
+                   , _I_ROYALBOOZE
                    , _I_BYTECOMP
                    , _I_BYTEKILL
                    , _I_C4MRP
@@ -1023,6 +1029,7 @@ enum stringpool_id { _I_1001_4
                    , _I_ZX009
                    , _I_ZX010
                    , _I_ZX015
+                   , _I_ZX02
                    , _I_DALI03F
                    , _I_DALI031F
                    , _I_DALI032F
@@ -1057,5 +1064,11 @@ enum stringpool_id { _I_1001_4
                    , _I_OSCAR64_4
                    , _I_COMP64K11
                    , _I_COMP64K12
+                   , _I_COMP64K13R
                    , _I_LZSS1
+                   , _I_DUPLEXCOD30
+                   , _I_DUPLEXCOD31
+                   , _I_BBPROT13
+                   , _I_6PACKGP
+                   , _I_SPARKPACK
                    };

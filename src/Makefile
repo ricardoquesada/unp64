@@ -19,7 +19,7 @@ ifeq ($(CFG),Debug)
   TARGET = unp64
   C_INCLUDE_DIRS =
   C_PREPROC =
-  CFLAGS = -std=gnu17 -pipe  -Wall -g2 -O0
+  CFLAGS = -pipe  -Wall -g2 -O0
   RC_INCLUDE_DIRS =
   RC_PREPROC =
   RCFLAGS =
@@ -34,7 +34,7 @@ ifeq ($(CFG),Release)
   TARGET = unp64
   C_INCLUDE_DIRS =
   C_PREPROC =
-  CFLAGS = -std=gnu17 -pipe  -Wall -g0 -O3
+  CFLAGS = -pipe  -Wall -g0 -O3
   RC_INCLUDE_DIRS =
   RC_PREPROC =
   RCFLAGS =
@@ -55,6 +55,7 @@ SRC_OBJS = \
   $(OBJ_DIR)/4wd.o   \
   $(OBJ_DIR)/64er.o \
   $(OBJ_DIR)/6502emu.o  \
+  $(OBJ_DIR)/6packGP.o  \
   $(OBJ_DIR)/ABCruncher.o   \
   $(OBJ_DIR)/AbuzeCrunch.o  \
   $(OBJ_DIR)/AbyssCoder.o   \
@@ -71,6 +72,7 @@ SRC_OBJS = \
   $(OBJ_DIR)/ASCprot.o  \
   $(OBJ_DIR)/Autostarters.o  \
   $(OBJ_DIR)/BAM.o  \
+  $(OBJ_DIR)/BBprot.o  \
   $(OBJ_DIR)/BeastLink.o    \
   $(OBJ_DIR)/BeefTrucker.o  \
   $(OBJ_DIR)/BetaDynamic.o  \
@@ -111,6 +113,7 @@ SRC_OBJS = \
   $(OBJ_DIR)/DarkSqueezer.o \
   $(OBJ_DIR)/DD.o   \
   $(OBJ_DIR)/DSCcoder.o \
+  $(OBJ_DIR)/DuplexCoder.o \
   $(OBJ_DIR)/Doynamite.o \
   $(OBJ_DIR)/DrZoom.o \
   $(OBJ_DIR)/Eastlinker.o   \
@@ -225,6 +228,7 @@ SRC_OBJS = \
   $(OBJ_DIR)/SKLcoder.o \
   $(OBJ_DIR)/SledgeHammer.o \
   $(OBJ_DIR)/SPC.o  \
+  $(OBJ_DIR)/SparkPack.o  \
   $(OBJ_DIR)/SpyPack.o  \
   $(OBJ_DIR)/SpeediComp.o   \
   $(OBJ_DIR)/STL.o  \
@@ -288,6 +292,7 @@ SRC_OBJS = \
   $(OBJ_DIR)/YetiCoder.o	\
   $(OBJ_DIR)/ZeroCoder.o	\
   $(OBJ_DIR)/ZX0.o	\
+  $(OBJ_DIR)/ZX02.o	\
   $(OBJ_DIR)/_Scanners.o
 
 define build_target
@@ -320,11 +325,9 @@ clean:
 print_header:
 	@echo ----------Configuration: unp64 - $(CFG)----------
 
-$(SRC_OBJS): | directories
-
 directories:
-	-@mkdir -p "$(OUTPUT_DIR)" 2>/dev/null || mkdir "$(OUTPUT_DIR)" 2>/dev/null || true
-	-@mkdir -p "$(OBJ_DIR)" 2>/dev/null || mkdir "$(OBJ_DIR)" 2>/dev/null || true
+	-@mkdir "$(OUTPUT_DIR)"
+	-@mkdir "$(OBJ_DIR)"
 
 $(OBJ_DIR)/6502emu.o: 6502emu.c	\
 6502emu.h	\
@@ -365,6 +368,10 @@ unp64.h
 	$(compile_source)
 
 $(OBJ_DIR)/64er.o: scanners/64er.c	\
+unp64.h
+	$(compile_source)
+
+$(OBJ_DIR)/6packGP.o: scanners/6packGP.c	\
 unp64.h
 	$(compile_source)
 
@@ -569,6 +576,10 @@ unp64.h
 	$(compile_source)
 
 $(OBJ_DIR)/DarkSqueezer.o: scanners/DarkSqueezer.c	\
+unp64.h
+	$(compile_source)
+
+$(OBJ_DIR)/DuplexCoder.o: scanners/DuplexCoder.c	\
 unp64.h
 	$(compile_source)
 
@@ -1244,6 +1255,10 @@ $(OBJ_DIR)/BAM.o: scanners/BAM.c	\
 unp64.h
 	$(compile_source)
 
+$(OBJ_DIR)/BBprot.o: scanners/BBprot.c	\
+unp64.h
+	$(compile_source)
+
 $(OBJ_DIR)/Cobra.o: scanners/Cobra.c	\
 unp64.h
 	$(compile_source)
@@ -1261,6 +1276,10 @@ unp64.h
 	$(compile_source)
 
 $(OBJ_DIR)/StarCrunch.o: scanners/StarCrunch.c	\
+unp64.h
+	$(compile_source)
+
+$(OBJ_DIR)/SparkPack.o: scanners/SparkPack.c	\
 unp64.h
 	$(compile_source)
 
@@ -1285,6 +1304,10 @@ unp64.h
 	$(compile_source)
 
 $(OBJ_DIR)/ZX0.o: scanners/ZX0.c	\
+unp64.h
+	$(compile_source)
+
+$(OBJ_DIR)/ZX02.o: scanners/ZX02.c	\
 unp64.h
 	$(compile_source)
 

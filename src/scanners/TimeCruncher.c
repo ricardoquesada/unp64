@@ -473,7 +473,15 @@ void Scn_TimeCruncher(unpstr *Unp)
                 PrintInfo(Unp,_I_TC31SP);
             else
                 PrintInfo(Unp,_I_TC31);
-            Unp->EndAdr=mem[0x833]|mem[0x837]<<8;
+
+            if((mem[0x82e] == 0xa9)&&(mem[0x834] == 0xa9))
+            {
+                Unp->EndAdr=mem[0x82f]|mem[0x835]<<8;
+            }
+            else
+            {
+                Unp->EndAdr=mem[0x833]|mem[0x837]<<8;
+            }
             // Henk/HTL, RWE & Speed-packer $91a, Timecr 3.1 Matcham/NET $930
             for(p=0x91a;p<0x931;p++)
             {

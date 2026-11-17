@@ -43,21 +43,21 @@ void Scn_Exomizer(unpstr *Unp)
                        (*(unsigned int*)(mem+0x0811)==0x78AB1E20) )
                     {
                         if (Unp->DebugP)
-                            printf("%s %s\r\n","G*P Intro Hack","1");
+                            printf("%s %s %s\r\n","G*P", "Intro Hack","1");
                         mem[0x810]=3;
                     }
                     else if(((*(unsigned int*)(mem+0x080d)&0x00ffffff)==0x00a908A0) &&
                             (*(unsigned int*)(mem+0x0811)==0x78AB1E20) )
                     {
                         if (Unp->DebugP)
-                            printf("%s %s\r\n", "G*P Intro Hack", "2");
+                            printf("%s %s %s\r\n","G*P", "Intro Hack","2");
                         mem[0x80e]=3;
                     }
                     else if(((*(unsigned int*)(mem+0x0810)&0x00ffffff)==0x00a908A0) &&
                             (*(unsigned int*)(mem+0x0814)==0x78AB1E20) )
                     {
                         if (Unp->DebugP)
-                            printf("%s %s\r\n", "G*P Intro Hack", "3");
+                            printf("%s %s %s\r\n","G*P", "Intro Hack","3");
                         mem[0x811]=3;
                     }
                     else if((*(unsigned int*)(mem+0x0809)==0x50472031) &&
@@ -67,7 +67,7 @@ void Scn_Exomizer(unpstr *Unp)
                     {
                         Unp->Forced=0x334;
                         if (Unp->DebugP)
-                            printf("%s %s - patch installed at $%04x\r\n", "G*P Intro Hack", "4", Unp->Forced);
+                            printf("%s %s %s - patch installed at $%04x\r\n", "G*P", "Intro Hack", "4", Unp->Forced);
                         memcpy(mem+Unp->Forced,GP_hack,sizeof(GP_hack));
                     }
                 }

@@ -346,6 +346,7 @@ Trilogic Expert v1.x / v2.x / v3.x / v4.x (+various hacks)
 64'er / Equal sequences 4.0A/B/C/D/DB/F / 4.1A/B/C
 64'er / special versions (2nd layers)
 64'er (Happy-Packer) / Equal sequences 2.2/3.2
+6Pack/G*P
 ABCruncher  (at least 4 variants, SCS and ONS hacks included)
 AbuzeCrunch v3.x (3 variants) / v3.7 / v5.0
 Action Packer
@@ -378,7 +379,7 @@ Buraki $02 Packer
 BYG Compactor v1.x / v2.x
 Byte Baby (BYG Compactor hack)
 ByteBoiler (+ ByteBoiler/CPX hack/SCS hack)
-ByteBoozer 0.9/1.0/1.1/2.0/LamerBoozer
+ByteBoozer 0.9/1.0/1.1/2.0/LamerBoozer/RoyalBoozer
 ByteBuster 4.x/Triad
 ByteCompactor
 ByteKiller v1.x
@@ -399,7 +400,7 @@ CCS Unknown
 CeleriPack
 Chris Noack's Mega Byte Packer
 CNCD Classic Packer
-Compress64k/Hermit v1.1/v1.2
+Compress64k/Hermit v1.1/v1.2/v1.3 (RLE)
 CRM Packer (S8 hack?)
 CruelCrunch 1.0 / 1.2 / 1.4 (Light)
 CruelCrunch 2.0 / 2.1 / 2.2 / 2.2+/2MHZ / 2.3/TKC / 2.x/ILS / 2.x/RND
@@ -434,7 +435,7 @@ Exploding Cruncher v2.x / v2.1 / v2.2
 Exploding Faces v1.x / v2.x
 FacePacker v1.0 / v1.1
 Falco Paul Packer
-FastPacker v1.0
+Fast Packer v1.0
 FCG Packer (4 variants)
 FCG Linker (similar to TMC ultimate linker)
 File Press Expert (Time Cruncher hack)
@@ -572,6 +573,7 @@ SIR MasterLinker
 SIR MiniPacker
 SledgeHammer v1.0/v1.1/v1.2/v2.0/v2.1/v2.2/v2.2CCS/v2.3/v2.4/v3.0/Trap/Kreator
 Ultimate SledgeHammer PC v1.1/Sorex (+sysless)
+Spark Packer
 Spy Packer
 StarCrunch
 Supercrunch (2 variants)
@@ -627,6 +629,7 @@ Zigag Packer
 Zipper 3.0 / 5.0 (aka Chromizer) / 5.0 hack / 5.1 (4 variants) / 8
 Zip Link v2.1 / v2.5
 ZX0 (C64 port in Bitfire) 1.0-alpha/1.0/1.5 (aka Dali 0.1)
+ZX02
 Dali 0.3/0.3.1/0.3.2/0.3.3/0.3.4/0.3.5
 U-Packer II/Entropy
 UA Packer
@@ -653,6 +656,7 @@ Abyss Coder v1/v2
 AEK Coder v1.1 / v2.0
 ALS Coder
 ASC/SCF Protector v1.14
+BeastieBoys Protector v1.3
 BonanzaBros Coder
 C+C Coder
 Change Protector v2.0
@@ -662,6 +666,7 @@ CNET Fixer Coder
 Cobra/SCG Coder
 DD Intro Coder
 DSCompware Coder
+Duplex Coder v3.0/v3.1
 Exact Coder
 Excalibur 666 Coder
 Excell/Ikari Intro Coder
@@ -1588,14 +1593,26 @@ Scanners revised:
   when there's something like JSR $E453 JMP $0803, JSR $Exxx must be ignored.
 
 
-2.42 - 2026.04.02 - 2026.05.06
+2.42 - 2026.04.02 - 2026.10.28
 
 Scanners added:
 - Compress64k/Hermit v1.2
-- FastPacker v1.0 (lzss_compressor by Repose/Style)
+- Compress64k/Hermit v1.3 (RLE)
+- Fast Packer v1.0 (aka lzss_compressor by Repose/Style)
+- Duplex Coder v3.0/v3.1
+- BeastieBoys Protector v1.3
+- 6Pack/G*P (by Six/G*P^DLoC, based on ZX0)
+- ZX02 (found in Shadow cracks, based on ZX0)
+- Spark Packer (found in Spark cracks, hence the name)
+- RoyalBoozer (found on Royal Arte/Booze)
 
+Scanners revised:
+- BitPickler 1.0: added more workarounds to allow unpacking other test programs
+- ByteBoozer (0.9/1.0): relaxed ID to detect more hacks.
+- Time Cruncher v3.1 / SpeedPacker: Corrected end of mem detection in a variant
+  tagged "TSS GROUP" in sysline.
 
--=[]=--- iAN CooG/HVSC^C64Intros ---=[]=-
-   *> http://iancoog.altervista.org <*
-http://hvsc.c64.org|http://intros.c64.org
+-=[]=---- iAN CooG/HVSC^C64Intros ----=[]=-
+    *> https://iancoog.altervista.org <*
+https://hvsc.c64.org|https://intros.c64.org
 

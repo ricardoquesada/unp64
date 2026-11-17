@@ -477,7 +477,7 @@ void Scn_Intros(unpstr *Unp)
         {
             Unp->Forced=0x334;
             if (Unp->DebugP)
-                printf("%s %s - patch installed at $%04x\r\n","G*P Intro Hack", "4", Unp->Forced);
+                printf("%s %s %s - patch installed at $%04x\r\n","G*P", "Intro Hack", "4", Unp->Forced);
             memcpy(mem+Unp->Forced,GP_hack,sizeof(GP_hack));
             Unp->EndAdr=0xae;
             Unp->DepAdr=0x04b1;

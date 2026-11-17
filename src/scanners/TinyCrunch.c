@@ -17,7 +17,7 @@ void Scn_TinyCrunch(unpstr *Unp)
             Unp->DepAdr=0x10e;
             Unp->Forced=0x80d;
             Unp->RetAdr=mem[0x838]|mem[0x839]<<8;
-            Unp->fEndBf=0x04; printf("Matched Variant 1\n");
+            Unp->fEndBf=0x04;
             Unp->EndAdC=EA_USE_Y;
             q=mem[0x82d]|mem[0x82f]<<8;
             q++;
@@ -34,7 +34,7 @@ void Scn_TinyCrunch(unpstr *Unp)
             Unp->DepAdr=0x10e;
             Unp->Forced=0x80d;
             Unp->RetAdr=mem[0x836]|mem[0x837]<<8;
-            Unp->fEndBf=mem[0x83d]|mem[0x83e]<<8; printf("Matched Variant 2, fEndBf=%04x\n", Unp->fEndBf);
+            Unp->fEndBf=mem[0x83d]|mem[0x83e]<<8;
             Unp->EndAdC=EA_USE_Y;
             if (mem[0x82e]==0x20) // JSR normally, or LDA if no 2nd pass
             {
@@ -63,7 +63,7 @@ void Scn_TinyCrunch(unpstr *Unp)
             Unp->DepAdr=0x10e;
             Unp->Forced=0x80d;
             Unp->RetAdr=mem[0x836]|mem[0x837]<<8;
-            Unp->fEndBf=mem[0x83d]|mem[0x83e]<<8; printf("Matched Variant 2, fEndBf=%04x\n", Unp->fEndBf);
+            Unp->fEndBf=mem[0x83d]|mem[0x83e]<<8;
             Unp->EndAdC=EA_USE_Y;
             //if (mem[0x82e]==0x20) // JSR normally, or LDA if no 2nd pass
             //{

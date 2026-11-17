@@ -37,5 +37,19 @@ void Scn_Comp64k(unpstr *Unp)
             PrintInfo(Unp,_I_COMP64K12);
             Unp->IdFlag=1;return;
         }
+        if( (*(unsigned int*)(mem+0x80e)==0x018538A9) &&
+            (*(unsigned int*)(mem+0x817)==0xCA00FB9D) &&
+            (*(unsigned int*)(mem+0x83F)==0x8DFCE538) &&
+            (*(unsigned int*)(mem+0x8EF)==0xA5FFC602) )
+        {
+            Unp->DepAdr=0x100;
+            Unp->Forced=0x80e;
+            Unp->StrMem=mem[0x839]|mem[0x83a]<<8;
+            Unp->fEndAf=0xfe;
+            Unp->EndAdC=EA_USE_X|0xffff;
+            Unp->RetAdr=mem[0x8fd]|mem[0x8fe]<<8;
+            PrintInfo(Unp,_I_COMP64K13R);
+            Unp->IdFlag=1;return;
+        }
     }
 }

@@ -132,6 +132,9 @@
 				RelativePath=".\scanners\64er.c">
 			</File>
 			<File
+				RelativePath=".\scanners\6packGP.c">
+			</File>
+			<File
 				RelativePath="6502emu.c">
 			</File>
 			<File
@@ -190,6 +193,9 @@
 			</File>
 			<File
 				RelativePath=".\scanners\BAM.c">
+			</File>
+			<File
+				RelativePath=".\scanners\BBprot.c">
 			</File>
 			<File
 				RelativePath=".\scanners\BeastLink.c">
@@ -316,6 +322,9 @@
 			</File>
 			<File
 				RelativePath=".\scanners\DSCcoder.c">
+			</File>
+			<File
+				RelativePath=".\scanners\DuplexCoder.c">
 			</File>
 			<File
 				RelativePath=".\scanners\Eastlinker.c">
@@ -657,6 +666,9 @@
 				RelativePath=".\scanners\SPC.c">
 			</File>
 			<File
+				RelativePath=".\scanners\SparkPack.c">
+			</File>
+			<File
 				RelativePath=".\scanners\SpeediComp.c">
 			</File>
 			<File
@@ -835,6 +847,9 @@
 			</File>
 			<File
 				RelativePath=".\scanners\ZX0.c">
+			</File>
+			<File
+				RelativePath=".\scanners\ZX02.c">
 			</File>
 		</Filter>
 		<Filter

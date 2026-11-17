@@ -223,6 +223,7 @@ Scnptr ScanFunc[]=
     ,Scn_FileLinkerSDA
     ,Scn_Inceria
     ,Scn_ZX0
+    ,Scn_ZX02
     ,Scn_TSCrunch
     ,Scn_PWRCoder
     ,Scn_BitPickler
@@ -232,6 +233,10 @@ Scnptr ScanFunc[]=
     ,Scn_AEB
     ,Scn_Comp64k
     ,Scn_Lzss
+    ,Scn_DuplexCoder
+    ,Scn_BBProt
+    ,Scn_6PackGP
+    ,Scn_SparkPack
     ,Scn_Exomizer
     ,Scn_Intros
     ,Scn_U_Generic801
@@ -669,6 +674,10 @@ void PrintInfo(unpstr *Unp, int id)
     break;
     case _I_LAMEBOOZER:
     sprintf(appstr,"%s%s","Lamer","Boozer");
+    printf(DEPMASK,appstr,Unp->DepAdr);
+    break;
+    case _I_ROYALBOOZE:
+    sprintf(appstr,"%s%s","Royal","Boozer");
     printf(DEPMASK,appstr,Unp->DepAdr);
     break;
     case _I_BYTECOMP:
@@ -2949,6 +2958,9 @@ void PrintInfo(unpstr *Unp, int id)
     case _I_ZX015:
     printf(DEPMASK2,"ZX0","v1.5",Unp->DepAdr);
     break;
+    case _I_ZX02:
+    printf(DEPMASK,"ZX02",Unp->DepAdr);
+    break;
     case _I_DALI03F:
     sprintf(appstr,"%s / %s","v0.3","fast");
     printf(DEPMASK2,"Dali",appstr,Unp->DepAdr);
@@ -3029,7 +3041,8 @@ void PrintInfo(unpstr *Unp, int id)
     printf(DEPMASK2,appstr,"v2.3",Unp->DepAdr);
     break;
     case _I_GPINTROH4:
-    strcpy(appstr, "G*P Intro Hack"); strcat(appstr, " 4");
+    sprintf(appstr,"%s %s","G*P","Intro Hack");
+    strcat(appstr, " 4");
     printf(DEPMASK,appstr,Unp->DepAdr);
     break;
     case _I_TAG:
@@ -3074,9 +3087,33 @@ void PrintInfo(unpstr *Unp, int id)
     sprintf(appstr,"%s%s","Compress64k","/Hermit");
     printf(DEPMASK2,appstr,"v1.2",Unp->DepAdr);
     break;
+    case _I_COMP64K13R:
+    sprintf(appstr,"%s%s","Compress64k","/Hermit");
+    printf(DEPMASK2,appstr,"v1.3 (RLE)",Unp->DepAdr);
+    break;
     case _I_LZSS1:
-    sprintf(appstr,"%s%s","Fast","Packer");
+    sprintf(appstr,"%s %s","Fast","Packer");
     printf(DEPMASK2,appstr,"v1.0",Unp->DepAdr);
+    break;
+    case _I_SPARKPACK:
+    sprintf(appstr,"%s %s","Spark","Packer");
+    printf(DEPMASK,appstr,Unp->DepAdr);
+    break;
+    case _I_DUPLEXCOD30:
+    sprintf(appstr,"%s %s","Duplex","Coder");
+    printf(DEPMASK2,appstr,"v3.0",Unp->DepAdr);
+    break;
+    case _I_DUPLEXCOD31:
+    sprintf(appstr,"%s %s","Duplex","Coder");
+    printf(DEPMASK2,appstr,"v3.1",Unp->DepAdr);
+    break;
+    case _I_BBPROT13:
+    sprintf(appstr,"%s %s","BeastieBoys","Protector");
+    printf(DEPMASK2,appstr,"v1.3",Unp->DepAdr);
+    break;
+    case _I_6PACKGP:
+    sprintf(appstr,"%s/%s","6Pack","G*P");
+    printf(DEPMASK,appstr,Unp->DepAdr);
     break;
     }
 }

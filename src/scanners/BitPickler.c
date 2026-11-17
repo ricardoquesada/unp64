@@ -20,7 +20,8 @@ void Scn_BitPickler(unpstr *Unp)
             Unp->Forced=0x80d;
             // workaround for onscreen5k and x-tiles
             p=mem[0x82e];
-            if( (p == 0x9c) ||
+            if( (p == 0x99) ||
+                (p == 0x9c) ||
                 (p == 0xa0) ||
                 (p == 0xa3) ||
                 (p == 0xa5) ||

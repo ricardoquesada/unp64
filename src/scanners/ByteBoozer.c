@@ -9,8 +9,8 @@ void Scn_ByteBoozer(unpstr *Unp)
     mem=Unp->mem;
     if( Unp->DepAdr==0 )
     {
-        if( (*(unsigned int*)(mem+0x80d)==0x8534A978) &&
-            (*(unsigned int*)(mem+0x811)==0xBD3BA201) &&
+        if( (mem[0x80d]==0x78) &&
+            (*(unsigned int*)(mem+0x812)==0x1FBD3BA2) &&
             (*(unsigned int*)(mem+0x815)==0x0695081F) &&
             (*(unsigned int*)(mem+0x819)==0x4CF810CA) &&
             (*(unsigned int*)(mem+0x8d2)==0x3003DD20) &&
@@ -78,6 +78,20 @@ void Scn_ByteBoozer(unpstr *Unp)
             Unp->StrMem=mem[0x83f]|mem[0x840]<<8;
             Unp->fEndAf=0xfc;Unp->EndAdC=0xffff;
             PrintInfo(Unp,_I_LAMEBOOZER);
+            Unp->IdFlag=1;return;
+        }
+        /* used in Royal arte and Interruptus/Booze */
+        if( (*(unsigned int*)(mem+0x80e)==0x1ABD28A2) &&
+            (*(unsigned int*)(mem+0x817)==0x00064CF8) &&
+            (*(unsigned int*)(mem+0x860)==0x089002C5) &&
+            (*(unsigned int*)(mem+0x93c)==0xCACAFBD6) )
+        {
+            Unp->Forced=0x80e;
+            Unp->RetAdr=mem[0x841]|mem[0x842]<<8;
+            Unp->DepAdr=0x200;
+            Unp->fStrAf=0xfa;;Unp->StrAdC=0xffff;
+            Unp->EndAdr=mem[0x944]|mem[0x945]<<8;
+            PrintInfo(Unp,_I_ROYALBOOZE);
             Unp->IdFlag=1;return;
         }
     }

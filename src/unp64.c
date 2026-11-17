@@ -1,6 +1,6 @@
 /*
 UNP64 - generic Commodore 64 prg unpacker
-(C) 2008-2019 iAN CooG/HVSC Crew^C64Intros
+(C) 2008-2026 iAN CooG/HVSC Crew^C64Intros
 original source and idea: testrun.c, taken from exo20b7
 
 Follows original disclaimer
@@ -1190,7 +1190,6 @@ looprecurse:
             }
         }
         // find the actual start jmp address
-        //printf("pc=$%04x\n",r->pc);
         while(r->pc < 0x10000)
         {
             if((mem[r->pc]==0xa2)||(mem[r->pc]==0xa0)||(mem[r->pc]==0xd0)||(mem[r->pc]==0x85))
@@ -1209,7 +1208,6 @@ looprecurse:
             r->pc++;
         }
         r->pc = mem[r->pc+1]|(mem[r->pc+2]<<8);
-        //printf("pc=$%04x\n",r->pc);
     }
     // BUG: whoops, if Unp.StrMem==0 I shouldn't really do this... better check if >= 2
     if (Unp.StrMem < 2)
