@@ -43,7 +43,7 @@ typedef struct
 
 typedef void(*Scnptr)(unpstr *);
 
-#define VERSION "2.42"
+#define VERSION "2.43"
 
 #define EA_USE_A 0x01000000
 #define EA_USE_X 0x00100000

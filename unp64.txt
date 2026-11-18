@@ -1,5 +1,5 @@
 -=[]=---------------------------------------------------------------------=[]=-
-        UNP64 v2.42 - Generic C64 prg unpacker - (C)2008-2026 iAN CooG
+        UNP64 v2.43 - Generic C64 prg unpacker - (C)2008-2026 iAN CooG
 -=[]=---------------------------------------------------------------------=[]=-
 
 Original source and idea: testrun.c, taken from Exomizer 2.0b7 by Magnus Lind.
@@ -1611,6 +1611,15 @@ Scanners revised:
 - ByteBoozer (0.9/1.0): relaxed ID to detect more hacks.
 - Time Cruncher v3.1 / SpeedPacker: Corrected end of mem detection in a variant
   tagged "TSS GROUP" in sysline.
+
+
+2.43 - 2026.11.18
+
+- Applied change to 6502emu.c in functions update_carry() and update_overflow()
+  to avoid using "bool" as a var name. Thanks to GPZ for the report.
+- Applied changes to Makefile and log.c for better compatibility.
+  Patch provided by riq.
+
 
 -=[]=---- iAN CooG/HVSC^C64Intros ----=[]=-
     *> https://iancoog.altervista.org <*

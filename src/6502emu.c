@@ -205,14 +205,14 @@ static void update_flags_nz(struct cpu_ctx *r, u8 value)
     r->flags |= (value == 0 ? FLAG_Z : 0) | (value & FLAG_N);
 }
 
-static void update_carry(struct cpu_ctx *r, int bool)
+static void update_carry(struct cpu_ctx *r, int ibool)
 {
-    r->flags = (r->flags & ~FLAG_C) | (bool != 0 ? FLAG_C : 0);
+    r->flags = (r->flags & ~FLAG_C) | (ibool != 0 ? FLAG_C : 0);
 }
 
-static void update_overflow(struct cpu_ctx *r, int bool)
+static void update_overflow(struct cpu_ctx *r, int ibool)
 {
-    r->flags = (r->flags & ~FLAG_V) | (bool != 0 ? FLAG_V : 0);
+    r->flags = (r->flags & ~FLAG_V) | (ibool != 0 ? FLAG_V : 0);
 }
 
 static void op_adc(struct cpu_ctx *r, int mode, union inst_arg *arg)
