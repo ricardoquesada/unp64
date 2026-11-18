@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ricardoquesada/unp64/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardoquesada/unp64/actions/workflows/ci.yml)
 
-This repository is an official mirror of **UNP64**, a generic Commodore 64 (`.prg`) executable unpacker created by iAN CooG.
+This repository is an unofficial mirror of **UNP64**, a generic Commodore 64 (`.prg`) executable unpacker created by iAN CooG.
 
 The official homepage can be found at http://iancoog.altervista.org/.
 
